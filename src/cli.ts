@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { basename } from "node:path";
 import { TekmarClient } from "./client";
 import {
   graphCsv,
@@ -23,7 +24,7 @@ type Parsed = {
 async function main() {
   const parsed = parseArgs(Bun.argv.slice(2));
   const [resource, subcommand, maybeId] = parsed.positionals;
-  if (!resource || resource === "help" || resource === "--help") return help();
+  if (!resource || resource === "help" || resource === "--help") return help(commandName(Bun.argv));
 
   const client = new TekmarClient();
   await client.ensureAuthenticated();
@@ -124,23 +125,26 @@ function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-function help(): void {
+function commandName(argv: string[]): string {
+  return basename(argv[1] ?? argv[0] ?? "tekmar");
+}
+
+function help(command: string): void {
   console.log(`Usage:
-  bun run cli temperatures [id]
-  bun run cli temperatures set-mode <id> <mode> --yes
-  bun run cli scenes [id]
-  bun run cli scenes set <scene-id> --yes
-  bun run cli schedules [system-1]
-  bun run cli schedules system-1 set [--mode n] [--num-events n] [--wake n] [--sleep n] --yes
-  bun run cli water [id]
-  bun run cli water reset-runtime --id <id> --type <type> --yes
-  bun run cli water reset-energy-runtime --yes
-  bun run cli graphs
-  bun run cli graphs csv [--out file.csv]`);
+  ${command} temperatures [id]
+  ${command} temperatures set-mode <id> <mode> --yes
+  ${command} scenes [id]
+  ${command} scenes set <scene-id> --yes
+  ${command} schedules [system-1]
+  ${command} schedules system-1 set [--mode n] [--num-events n] [--wake n] [--sleep n] --yes
+  ${command} water [id]
+  ${command} water reset-runtime --id <id> --type <type> --yes
+  ${command} water reset-energy-runtime --yes
+  ${command} graphs
+  ${command} graphs csv [--out file.csv]`);
 }
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
-
