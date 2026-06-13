@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { basename } from "node:path";
 import { TekmarClient } from "./client";
+import { formatDomain, formatSuccess } from "./format";
 import {
   graphCsv,
   graphs,
@@ -40,20 +41,20 @@ async function main() {
         requireYes(parsed.options);
         if (!maybeId || !parsed.positionals[3]) throw new Error("Usage: temperatures set-mode <id> <mode> --yes");
         await setTemperatureMode(client, maybeId, parsed.positionals[3]);
-        return print({ ok: true });
+        return printSuccess({ ok: true }, parsed.options);
       }
       if (parsed.options.raw) return print(await rawTemperatures(client, subcommand));
-      return print(await temperatures(client, subcommand));
+      return printDomain("temperatures", await temperatures(client, subcommand), parsed.options);
 
     case "scenes":
       if (subcommand === "set") {
         requireYes(parsed.options);
         if (!maybeId) throw new Error("Usage: scenes set <scene-id> --yes");
         await setScene(client, maybeId);
-        return print({ ok: true });
+        return printSuccess({ ok: true }, parsed.options);
       }
       if (parsed.options.raw) return print(await rawScenes(client, subcommand));
-      return print(await scenes(client, subcommand));
+      return printDomain("scenes", await scenes(client, subcommand), parsed.options);
 
     case "schedules":
       if (subcommand === "system-1" && maybeId === "set") {
@@ -64,10 +65,10 @@ async function main() {
           wake: stringOption(parsed.options.wake),
           sleep: stringOption(parsed.options.sleep),
         });
-        return print({ ok: true });
+        return printSuccess({ ok: true }, parsed.options);
       }
       if (parsed.options.raw) return print(await rawSchedules(client, subcommand));
-      return print(await schedules(client, subcommand));
+      return printDomain("schedules", await schedules(client, subcommand), parsed.options);
 
     case "water":
     case "water-temperatures":
@@ -77,15 +78,15 @@ async function main() {
         const type = stringOption(parsed.options.type);
         if (!id || !type) throw new Error("Usage: water reset-runtime --id <id> --type <boiler|pump> --yes");
         await resetRuntime(client, id, type);
-        return print({ ok: true });
+        return printSuccess({ ok: true }, parsed.options);
       }
       if (subcommand === "reset-energy-runtime") {
         requireYes(parsed.options);
         await resetEnergyRuntime(client);
-        return print({ ok: true });
+        return printSuccess({ ok: true }, parsed.options);
       }
       if (parsed.options.raw) return print(await rawWaterTemperatures(client, subcommand));
-      return print(await waterTemperatures(client, subcommand));
+      return printDomain(resource, await waterTemperatures(client, subcommand), parsed.options);
 
     case "graphs":
       if (subcommand === "csv") {
@@ -93,13 +94,13 @@ async function main() {
         const out = stringOption(parsed.options.out);
         if (out) {
           await Bun.write(out, csv);
-          return print({ ok: true, out });
+          return printSuccess({ ok: true, out }, parsed.options);
         }
         process.stdout.write(csv);
         return;
       }
       if (parsed.options.raw) return print(await rawGraphs(client));
-      return print(await graphs(client));
+      return printDomain("graphs", await graphs(client), parsed.options);
 
     default:
       throw new Error(`Unknown resource: ${resource}`);
@@ -135,6 +136,16 @@ function print(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function printDomain(resource: string, value: unknown, options: Record<string, string | boolean>): void {
+  if (options.json) return print(value);
+  console.log(formatDomain(resource, value));
+}
+
+function printSuccess(value: unknown, options: Record<string, string | boolean>): void {
+  if (options.json) return print(value);
+  console.log(formatSuccess(value));
+}
+
 function commandName(argv: string[]): string {
   return basename(argv[1] ?? argv[0] ?? "tekmar");
 }
@@ -154,7 +165,8 @@ function help(command: string): void {
   ${command} graphs csv [--out file.csv]
 
 Options:
-  --raw  Print parsed HTML/forms/tables instead of the domain model`);
+  --json  Print domain JSON instead of readable text
+  --raw   Print parsed HTML/forms/tables for debugging`);
 }
 
 main().catch((error) => {

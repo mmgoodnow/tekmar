@@ -35,6 +35,6 @@ tekmar graphs
 tekmar graphs csv --out graph.csv
 ```
 
-Read commands return domain-shaped JSON, not the underlying Rails HTML structure. Add `--raw` to inspect parsed forms, links, and tables while reverse engineering.
+Read commands print readable summaries by default. Add `--json` for domain-shaped JSON, or `--raw` to inspect parsed forms, links, and tables while reverse engineering.
 
 Write commands require `--yes`.
