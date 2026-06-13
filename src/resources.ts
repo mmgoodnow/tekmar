@@ -6,6 +6,12 @@ export function requireYes(options: Record<string, string | boolean>): void {
 }
 
 export async function temperatures(client: TekmarClient, id?: string) {
+  const raw = await rawTemperatures(client, id);
+  if (id) return temperatureDetail(id, raw);
+  return temperatureList(raw);
+}
+
+export async function rawTemperatures(client: TekmarClient, id?: string) {
   const path = id ? `/temperatures/${id}` : "/temperatures";
   const html = await client.get(path);
   return {
@@ -24,6 +30,12 @@ export async function setTemperatureMode(client: TekmarClient, id: string, mode:
 }
 
 export async function scenes(client: TekmarClient, id?: string) {
+  const raw = await rawScenes(client, id);
+  if (id) return sceneDetail(id, raw);
+  return sceneList(raw);
+}
+
+export async function rawScenes(client: TekmarClient, id?: string) {
   const path = id ? `/scenes/${id}` : "/scenes";
   const html = await client.get(path);
   return {
@@ -42,6 +54,12 @@ export async function setScene(client: TekmarClient, sceneId: string) {
 }
 
 export async function schedules(client: TekmarClient, detail?: string) {
+  const raw = await rawSchedules(client, detail);
+  if (detail) return scheduleDetail(detail, raw);
+  return scheduleList(raw);
+}
+
+export async function rawSchedules(client: TekmarClient, detail?: string) {
   const path = detail ? `/schedules/${detail}` : "/schedules";
   const html = await client.get(path);
   return {
@@ -65,6 +83,12 @@ export async function setSystemSchedule(client: TekmarClient, options: { mode?: 
 }
 
 export async function waterTemperatures(client: TekmarClient, id?: string) {
+  const raw = await rawWaterTemperatures(client, id);
+  if (id) return waterTemperatureDetail(id, raw);
+  return waterTemperatureList(raw);
+}
+
+export async function rawWaterTemperatures(client: TekmarClient, id?: string) {
   const path = id ? `/water_temperatures/${id}` : "/water_temperatures";
   const html = await client.get(path);
   return {
@@ -87,6 +111,18 @@ export async function resetEnergyRuntime(client: TekmarClient) {
 }
 
 export async function graphs(client: TekmarClient) {
+  const raw = await rawGraphs(client);
+  return {
+    series: raw.series.map((series) => ({
+      name: series.name,
+      pointCount: series.points.length,
+      first: series.points[0],
+      last: series.points.at(-1),
+    })),
+  };
+}
+
+export async function rawGraphs(client: TekmarClient) {
   const html = await client.get("/graphs");
   return {
     path: "/graphs",
@@ -123,6 +159,138 @@ function summarizeForms(html: string) {
         options: control.options?.map((option) => option.text),
       })),
   }));
+}
+
+type RawPage = Awaited<ReturnType<typeof rawTemperatures>>;
+
+function temperatureList(raw: RawPage) {
+  const idByName = idsByLinkedName(raw.links, /\/temperatures\/(\d+)/);
+  const zones = raw.tables
+    .flatMap((table) => table.slice(1))
+    .filter((row) => row.length >= 4 && row[0])
+    .map((row) => ({
+      id: idByName.get(row[0]),
+      name: row[0],
+      temperatureF: numberOrNull(row[1]),
+      heatSetpointF: numberOrNull(row[2]),
+      coolSetpointF: numberOrNull(row[3]),
+    }));
+  return {
+    outdoorTemperatureF: numberOrNull(raw.headings.join(" ").match(/(-?\d+(?:\.\d+)?)\s*°F/)?.[1]),
+    zones,
+  };
+}
+
+function temperatureDetail(id: string, raw: RawPage) {
+  const title = raw.headings[0] ?? "";
+  const [area, name] = title.includes(":") ? title.split(":", 2).map((part) => part.trim()) : [undefined, title];
+  const modeControls = raw.forms.flatMap((form) => form.controls).filter((control) => control.name === "device[mode_setting]");
+  return {
+    id,
+    name,
+    area,
+    capabilities: raw.headings.slice(1).map((heading) => heading.replace(/:$/, "")),
+    mode: {
+      current: modeControls.find((control) => control.checked)?.value,
+      available: modeControls.map((control) => control.value).filter(Boolean),
+    },
+  };
+}
+
+function sceneList(raw: RawPage) {
+  const details = raw.links.filter((link) => /\/scenes\/\d+/.test(link.href));
+  const controls = raw.forms.flatMap((form) => form.controls).filter((control) => control.name === "tn4_id");
+  return {
+    currentSceneId: controls.find((control) => control.checked)?.value,
+    scenes: controls.map((control, index) => ({
+      id: control.value,
+      current: Boolean(control.checked),
+      detailPath: details[index]?.href,
+    })),
+  };
+}
+
+function sceneDetail(id: string, raw: RawPage) {
+  return {
+    id,
+    zones: raw.links
+      .map((link) => ({ id: link.href.match(/\/temperatures\/(\d+)/)?.[1], name: link.text }))
+      .filter((zone) => zone.id),
+  };
+}
+
+function scheduleList(raw: RawPage) {
+  return {
+    networkTime: raw.headings.find((heading) => heading.includes("Network Time")),
+    schedules: raw.links
+      .map((link) => ({ id: link.href.match(/\/schedules\/([^/?#]+)/)?.[1], name: link.text }))
+      .filter((schedule) => schedule.id),
+  };
+}
+
+function scheduleDetail(id: string, raw: RawPage) {
+  const controls = raw.forms.flatMap((form) => form.controls);
+  return {
+    id,
+    networkTime: raw.headings.find((heading) => heading.includes("Network Time")),
+    mode: selectValue(controls, "mode"),
+    eventCount: numberOrNull(selectValue(controls, "num_events")),
+    events: {
+      wake: selectValue(controls, "events[Wake][all_days]"),
+      sleep: selectValue(controls, "events[Sleep][all_days]"),
+    },
+    availableModes: selectOptions(controls, "mode"),
+    availableEventCounts: selectOptions(controls, "num_events"),
+  };
+}
+
+function waterTemperatureList(raw: RawPage) {
+  return {
+    systems: raw.links
+      .map((link) => ({ id: link.href.match(/\/water_temperatures\/(\d+)/)?.[1], name: link.text }))
+      .filter((system) => system.id),
+    resetActions: raw.forms.map((form) => ({
+      path: form.action.split("?")[0],
+      id: new URLSearchParams(form.action.split("?")[1] ?? "").get("id"),
+      type: new URLSearchParams(form.action.split("?")[1] ?? "").get("type"),
+    })),
+  };
+}
+
+function waterTemperatureDetail(id: string, raw: RawPage) {
+  return {
+    id,
+    zones: raw.tables.flatMap((table) =>
+      table.slice(1).map((row) => ({
+        name: row[0],
+        address: row[1],
+        area: row[2],
+      })),
+    ).filter((zone) => zone.name),
+  };
+}
+
+function idsByLinkedName(links: Array<{ href: string; text: string }>, pattern: RegExp): Map<string, string> {
+  const ids = new Map<string, string>();
+  for (const link of links) {
+    const id = link.href.match(pattern)?.[1];
+    if (id) ids.set(link.text, id);
+  }
+  return ids;
+}
+
+function numberOrNull(value: string | undefined): number | null {
+  if (!value || value.toLowerCase() === "n/a") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function selectValue(controls: Array<{ name?: string; value?: string }>, name: string): string | undefined {
+  return controls.find((control) => control.name === name)?.value;
+}
+
+function selectOptions(controls: Array<{ name?: string; options?: string[] }>, name: string): string[] {
+  return controls.find((control) => control.name === name)?.options ?? [];
 }
 
 function graphSeries(html: string) {

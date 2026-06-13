@@ -14,25 +14,27 @@ Set `TEKMAR_BASE_URL` to the gateway origin. Authenticate with either `TEKMAR_LO
 ## Commands
 
 ```sh
-bun run cli temperatures
-bun run cli temperatures 9
-bun run cli temperatures set-mode 9 1 --yes
+tekmar temperatures
+tekmar temperatures 9
+tekmar temperatures set-mode 9 1 --yes
 
-bun run cli scenes
-bun run cli scenes 1
-bun run cli scenes set 1 --yes
+tekmar scenes
+tekmar scenes 1
+tekmar scenes set 1 --yes
 
-bun run cli schedules
-bun run cli schedules system-1
-bun run cli schedules system-1 set --mode 0 --num-events 2 --wake 48 --sleep 0 --yes
+tekmar schedules
+tekmar schedules system-1
+tekmar schedules system-1 set --mode 0 --num-events 2 --wake 48 --sleep 0 --yes
 
-bun run cli water
-bun run cli water 1
-bun run cli water reset-runtime --id 0 --type boiler --yes
-bun run cli water reset-energy-runtime --yes
+tekmar water
+tekmar water 1
+tekmar water reset-runtime --id 0 --type boiler --yes
+tekmar water reset-energy-runtime --yes
 
-bun run cli graphs
-bun run cli graphs csv --out graph.csv
+tekmar graphs
+tekmar graphs csv --out graph.csv
 ```
+
+Read commands return domain-shaped JSON, not the underlying Rails HTML structure. Add `--raw` to inspect parsed forms, links, and tables while reverse engineering.
 
 Write commands require `--yes`.

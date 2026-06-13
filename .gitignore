@@ -7,4 +7,4 @@ authenticated.yaml
 node_modules/
 coverage/
 dist/
-
+/tekmar

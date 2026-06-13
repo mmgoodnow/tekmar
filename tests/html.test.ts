@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
-import { graphCsv, graphs } from "../src/resources";
+import { graphCsv, graphs, temperatures } from "../src/resources";
 
 test("parses Rails forms and builds override body", () => {
   const html = `<form action="/temperatures/9" method="post">
@@ -61,6 +61,41 @@ test("parses legacy entities and inline graph series", async () => {
     },
   };
   const result = await graphs(client as never);
-  expect(result.headings).toEqual(["Current outdoor temperature: 79 °F"]);
-  expect(result.series).toEqual([{ name: "OutdoorTemperature", points: [[0, 80.2]] }]);
+  expect(result.series).toEqual([{ name: "OutdoorTemperature", pointCount: 1, first: [0, 80.2], last: [0, 80.2] }]);
+});
+
+test("returns a domain temperature list", async () => {
+  const client = {
+    async get() {
+      return `<h4>Current outdoor temperature: 79 &deg;F</h4>
+      <a href="/temperatures/9">Sunroom</a>
+      <table>
+        <tr><th>Name</th><th>Temperature<br>(°F)</th><th>Heat<br>(°F)</th><th>Cool<br>(°F)</th></tr>
+        <tr><td>Sunroom</td><td>75</td><td>64</td><td>n/a</td></tr>
+      </table>`;
+    },
+  };
+  expect(await temperatures(client as never)).toEqual({
+    outdoorTemperatureF: 79,
+    zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
+  });
+});
+
+test("returns a domain temperature detail", async () => {
+  const client = {
+    async get() {
+      return `<h2>First Floor: Sunroom</h2><h3>Mode</h3><h3>Heat:</h3>
+      <form action="/temperatures/9" method="post">
+        <input type="radio" name="device[mode_setting]" value="1" checked>
+        <input type="radio" name="device[mode_setting]" value="2">
+      </form>`;
+    },
+  };
+  expect(await temperatures(client as never, "9")).toEqual({
+    id: "9",
+    name: "Sunroom",
+    area: "First Floor",
+    capabilities: ["Mode", "Heat"],
+    mode: { current: "1", available: ["1", "2"] },
+  });
 });

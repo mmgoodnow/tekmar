@@ -4,6 +4,11 @@ import { TekmarClient } from "./client";
 import {
   graphCsv,
   graphs,
+  rawGraphs,
+  rawScenes,
+  rawSchedules,
+  rawTemperatures,
+  rawWaterTemperatures,
   requireYes,
   resetEnergyRuntime,
   resetRuntime,
@@ -37,6 +42,7 @@ async function main() {
         await setTemperatureMode(client, maybeId, parsed.positionals[3]);
         return print({ ok: true });
       }
+      if (parsed.options.raw) return print(await rawTemperatures(client, subcommand));
       return print(await temperatures(client, subcommand));
 
     case "scenes":
@@ -46,6 +52,7 @@ async function main() {
         await setScene(client, maybeId);
         return print({ ok: true });
       }
+      if (parsed.options.raw) return print(await rawScenes(client, subcommand));
       return print(await scenes(client, subcommand));
 
     case "schedules":
@@ -59,6 +66,7 @@ async function main() {
         });
         return print({ ok: true });
       }
+      if (parsed.options.raw) return print(await rawSchedules(client, subcommand));
       return print(await schedules(client, subcommand));
 
     case "water":
@@ -76,6 +84,7 @@ async function main() {
         await resetEnergyRuntime(client);
         return print({ ok: true });
       }
+      if (parsed.options.raw) return print(await rawWaterTemperatures(client, subcommand));
       return print(await waterTemperatures(client, subcommand));
 
     case "graphs":
@@ -89,6 +98,7 @@ async function main() {
         process.stdout.write(csv);
         return;
       }
+      if (parsed.options.raw) return print(await rawGraphs(client));
       return print(await graphs(client));
 
     default:
@@ -141,7 +151,10 @@ function help(command: string): void {
   ${command} water reset-runtime --id <id> --type <type> --yes
   ${command} water reset-energy-runtime --yes
   ${command} graphs
-  ${command} graphs csv [--out file.csv]`);
+  ${command} graphs csv [--out file.csv]
+
+Options:
+  --raw  Print parsed HTML/forms/tables instead of the domain model`);
 }
 
 main().catch((error) => {
