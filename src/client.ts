@@ -20,7 +20,9 @@ export class TekmarClient {
   private password?: string;
 
   constructor(options: TekmarClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? Bun.env.TEKMAR_BASE_URL ?? "REDACTED_TEKMAR_BASE_URL").replace(/\/$/, "");
+    const baseUrl = options.baseUrl ?? Bun.env.TEKMAR_BASE_URL;
+    if (!baseUrl) throw new Error("TEKMAR_BASE_URL is required.");
+    this.baseUrl = baseUrl.replace(/\/$/, "");
     this.login = options.login ?? Bun.env.TEKMAR_LOGIN;
     this.password = options.password ?? Bun.env.TEKMAR_PASSWORD;
     const sessionCookie = options.sessionCookie ?? Bun.env.TEKMAR_SESSION_COOKIE;
@@ -115,4 +117,3 @@ export class TekmarClient {
     }
   }
 }
-

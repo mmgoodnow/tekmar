@@ -9,7 +9,7 @@ bun install
 cp .env.example .env
 ```
 
-Authenticate with either `TEKMAR_LOGIN` and `TEKMAR_PASSWORD`, or set `TEKMAR_SESSION_COOKIE` to an existing `_tN4_gateway=...` cookie.
+Set `TEKMAR_BASE_URL` to the gateway origin. Authenticate with either `TEKMAR_LOGIN` and `TEKMAR_PASSWORD`, or set `TEKMAR_SESSION_COOKIE` to an existing `_tN4_gateway=...` cookie.
 
 ## Commands
 
@@ -36,4 +36,3 @@ bun run cli graphs csv --out graph.csv
 ```
 
 Write commands require `--yes`.
-
