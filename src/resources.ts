@@ -1,6 +1,18 @@
 import { formBody, parseForms, parseLinks, parseTables, stripTags, type HtmlForm } from "./html";
 import type { TekmarClient } from "./client";
 
+export type TemperatureZone = {
+  id?: string;
+  name: string;
+  temperatureF: number | null;
+  heatSetpointF: number | null;
+  coolSetpointF: number | null;
+};
+
+export type TemperatureStreamEvent =
+  | { type: "outdoor"; outdoorTemperatureF: number | null }
+  | { type: "zone"; zone: TemperatureZone };
+
 export function requireYes(options: Record<string, string | boolean>): void {
   if (!options.yes) throw new Error("Refusing to run write command without --yes.");
 }
@@ -14,7 +26,7 @@ export async function temperatures(client: TekmarClient, id?: string) {
 export async function rawTemperatures(client: TekmarClient, id?: string) {
   const path = id ? `/temperatures/${id}` : "/temperatures";
   const html = await client.get(path);
-  const thermostatRows = id ? [] : await temperatureAjaxRows(client, html);
+  const thermostatRows = id ? [] : await collectTemperatureAjaxRows(client, html);
   return {
     path,
     headings: headings(html),
@@ -23,6 +35,16 @@ export async function rawTemperatures(client: TekmarClient, id?: string) {
     thermostatRows,
     forms: summarizeForms(html),
   };
+}
+
+export async function* streamTemperatures(client: TekmarClient): AsyncGenerator<TemperatureStreamEvent> {
+  const html = await client.get("/temperatures");
+  yield { type: "outdoor", outdoorTemperatureF: outdoorTemperature(html) };
+  for (const id of thermostatIds(html)) {
+    const row = await temperatureAjaxRow(client, id);
+    const zone = temperatureZoneFromRow(row);
+    if (zone) yield { type: "zone", zone };
+  }
 }
 
 export async function setTemperatureMode(client: TekmarClient, id: string, mode: string) {
@@ -180,29 +202,43 @@ function temperatureList(raw: RawPage) {
   const idByName = idsByLinkedName(raw.links, /\/temperatures\/(\d+)/);
   const rows: Array<{ id?: string; cells: string[] }> = raw.thermostatRows?.length ? raw.thermostatRows : raw.tables.flatMap((table) => table.slice(1).map((row) => ({ cells: row })));
   const zones = rows
-    .filter((row) => row.cells.length >= 4 && row.cells[0])
-    .map((row) => ({
-      id: row.id ?? idByName.get(row.cells[0]),
-      name: row.cells[0],
-      temperatureF: numberOrNull(row.cells[1]),
-      heatSetpointF: numberOrNull(row.cells[2]),
-      coolSetpointF: numberOrNull(row.cells[3]),
-    }));
+    .map((row) => temperatureZoneFromRow({ id: row.id ?? idByName.get(row.cells[0]), cells: row.cells }))
+    .filter((zone) => zone !== undefined);
   return {
     outdoorTemperatureF: numberOrNull(raw.headings.join(" ").match(/(-?\d+(?:\.\d+)?)\s*°F/)?.[1]),
     zones,
   };
 }
 
-async function temperatureAjaxRows(client: TekmarClient, html: string): Promise<Array<{ id: string; cells: string[] }>> {
-  const ids = [...new Set([...html.matchAll(/\bid=["']thermostat(\d+)["']/gi)].map((match) => match[1]!).filter(Boolean))];
-  const rows = await Promise.all(ids.map(async (id) => {
-    const js = await client.get(`/temperatures/area_thermostat?thermostat_id=${id}`);
-    const fragment = ajaxHtmlFragment(js);
-    const cells = parseTables(`<table><tr>${fragment}</tr></table>`)[0]?.[0] ?? [];
-    return { id, cells };
-  }));
+async function collectTemperatureAjaxRows(client: TekmarClient, html: string): Promise<Array<{ id: string; cells: string[] }>> {
+  const rows = await Promise.all(thermostatIds(html).map((id) => temperatureAjaxRow(client, id)));
   return rows.filter((row) => row.cells.length > 0);
+}
+
+async function temperatureAjaxRow(client: TekmarClient, id: string): Promise<{ id: string; cells: string[] }> {
+  const js = await client.get(`/temperatures/area_thermostat?thermostat_id=${id}`);
+  const fragment = ajaxHtmlFragment(js);
+  const cells = parseTables(`<table><tr>${fragment}</tr></table>`)[0]?.[0] ?? [];
+  return { id, cells };
+}
+
+function thermostatIds(html: string): string[] {
+  return [...new Set([...html.matchAll(/\bid=["']thermostat(\d+)["']/gi)].map((match) => match[1]!).filter(Boolean))];
+}
+
+function outdoorTemperature(html: string): number | null {
+  return numberOrNull(headings(html).join(" ").match(/(-?\d+(?:\.\d+)?)\s*°F/)?.[1]);
+}
+
+function temperatureZoneFromRow(row: { id?: string; cells: string[] }): TemperatureZone | undefined {
+  if (row.cells.length < 4 || !row.cells[0]) return undefined;
+  return {
+    id: row.id,
+    name: row.cells[0],
+    temperatureF: numberOrNull(row.cells[1]),
+    heatSetpointF: numberOrNull(row.cells[2]),
+    coolSetpointF: numberOrNull(row.cells[3]),
+  };
 }
 
 function ajaxHtmlFragment(js: string): string {

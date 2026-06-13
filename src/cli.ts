@@ -18,6 +18,7 @@ import {
   setScene,
   setSystemSchedule,
   setTemperatureMode,
+  streamTemperatures,
   temperatures,
   waterTemperatures,
 } from "./resources";
@@ -44,6 +45,7 @@ async function main() {
         return printSuccess({ ok: true }, parsed.options);
       }
       if (parsed.options.raw) return print(await rawTemperatures(client, subcommand));
+      if (!subcommand && !parsed.options.json) return streamTemperatureOutput(client);
       return printDomain("temperatures", await temperatures(client, subcommand), parsed.options);
 
     case "scenes":
@@ -144,6 +146,26 @@ function printDomain(resource: string, value: unknown, options: Record<string, s
 function printSuccess(value: unknown, options: Record<string, string | boolean>): void {
   if (options.json) return print(value);
   console.log(formatSuccess(value));
+}
+
+async function streamTemperatureOutput(client: TekmarClient): Promise<void> {
+  let printedHeader = false;
+  for await (const event of streamTemperatures(client)) {
+    if (event.type === "outdoor") {
+      process.stdout.write(`Outdoor: ${formatTemp(event.outdoorTemperatureF)}\n\n`);
+      process.stdout.write(`${"ID".padEnd(3)} ${"Zone".padEnd(19)} ${"Temp".padStart(6)} ${"Heat".padStart(6)} ${"Cool".padStart(6)}\n`);
+      process.stdout.write(`${"--".padEnd(3)} ${"----".padEnd(19)} ${"----".padStart(6)} ${"----".padStart(6)} ${"----".padStart(6)}\n`);
+      printedHeader = true;
+      continue;
+    }
+    if (!printedHeader) continue;
+    const zone = event.zone;
+    process.stdout.write(`${String(zone.id ?? "-").padEnd(3)} ${zone.name.padEnd(19)} ${formatTemp(zone.temperatureF).padStart(6)} ${formatTemp(zone.heatSetpointF).padStart(6)} ${formatTemp(zone.coolSetpointF).padStart(6)}\n`);
+  }
+}
+
+function formatTemp(value: number | null): string {
+  return typeof value === "number" ? `${value} F` : "-";
 }
 
 function commandName(argv: string[]): string {

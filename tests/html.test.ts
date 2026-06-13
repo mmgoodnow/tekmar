@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
-import { graphCsv, graphs, temperatures } from "../src/resources";
+import { graphCsv, graphs, streamTemperatures, temperatures } from "../src/resources";
 
 test("parses Rails forms and builds override body", () => {
   const html = `<form action="/temperatures/9" method="post">
@@ -123,4 +123,23 @@ test("returns Ajax-loaded temperature rows", async () => {
     outdoorTemperatureF: 79,
     zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
   });
+});
+
+test("streams Ajax-loaded temperature rows", async () => {
+  const client = {
+    async get(path: string) {
+      if (path === "/temperatures") {
+        return `<h4>Current outdoor temperature: 79 &deg;F</h4><tr id="thermostat9"></tr>`;
+      }
+      return `myhtml="<td><a href=\\"/temperatures/9\\">Sunroom<\\/a><\\/td><td>75<\\/td><td>64<\\/td><td>n/a<\\/td>"
+      $('thermostat9').replace(myhtml);`;
+    },
+  };
+
+  const events = [];
+  for await (const event of streamTemperatures(client as never)) events.push(event);
+  expect(events).toEqual([
+    { type: "outdoor", outdoorTemperatureF: 79 },
+    { type: "zone", zone: { id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null } },
+  ]);
 });
