@@ -24,7 +24,7 @@ tekmar scenes set 1 --yes
 
 tekmar schedules
 tekmar schedules system-1
-tekmar schedules system-1 set --mode 0 --num-events 2 --wake 48 --sleep 0 --yes
+tekmar schedules system-1 set --mode 0 --num-events 2 --occ 48 --unocc 0 --yes
 
 tekmar water
 tekmar water 1

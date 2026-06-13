@@ -18,18 +18,17 @@ test("formats schedule detail as labeled fields", () => {
     networkTime: "Current Network Time: 01:29 AM",
     mode: "0",
     eventCount: 2,
-    events: { wake: "48", sleep: "0" },
+    times: { occ: "48", unocc: "0" },
     availableModes: ["24hr", "5-2"],
     availableEventCounts: ["2", "4"],
   });
 
   expect(output).toContain("Schedule system-1");
   expect(output).toContain("Mode: 0 (24hr, 5-2)");
-  expect(output).toContain("Wake: 48");
+  expect(output).toContain("Occ: 48");
 });
 
 test("formats success output", () => {
   expect(formatSuccess({ ok: true })).toBe("OK");
   expect(formatSuccess({ ok: true, out: "graph.csv" })).toBe("Wrote graph.csv");
 });
-

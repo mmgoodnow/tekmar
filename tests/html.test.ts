@@ -99,3 +99,28 @@ test("returns a domain temperature detail", async () => {
     mode: { current: "1", available: ["1", "2"] },
   });
 });
+
+test("returns Ajax-loaded temperature rows", async () => {
+  const client = {
+    async get(path: string) {
+      if (path === "/temperatures") {
+        return `<h4>Current outdoor temperature: 79 &deg;F</h4>
+        <table><tr><th>Name</th><th>Temperature</th><th>Heat</th><th>Cool</th></tr>
+          <tr id="thermostat9"></tr>
+        </table>`;
+      }
+      return `myhtml="
+        <td><a href=\\"/temperatures/9\\">Sunroom<\\/a><\\/td>
+        <td>75<\\/td>
+        <td><span>64<\\/span><\\/td>
+        <td>n/a<\\/td>
+      "
+      $('thermostat9').replace(myhtml);`;
+    },
+  };
+
+  expect(await temperatures(client as never)).toEqual({
+    outdoorTemperatureF: 79,
+    zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
+  });
+});

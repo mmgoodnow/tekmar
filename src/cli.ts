@@ -62,8 +62,8 @@ async function main() {
         await setSystemSchedule(client, {
           mode: stringOption(parsed.options.mode),
           numEvents: stringOption(parsed.options["num-events"]),
-          wake: stringOption(parsed.options.wake),
-          sleep: stringOption(parsed.options.sleep),
+          wake: stringOption(parsed.options.occ) ?? stringOption(parsed.options.wake),
+          sleep: stringOption(parsed.options.unocc) ?? stringOption(parsed.options.sleep),
         });
         return printSuccess({ ok: true }, parsed.options);
       }
@@ -157,7 +157,7 @@ function help(command: string): void {
   ${command} scenes [id]
   ${command} scenes set <scene-id> --yes
   ${command} schedules [system-1]
-  ${command} schedules system-1 set [--mode n] [--num-events n] [--wake n] [--sleep n] --yes
+  ${command} schedules system-1 set [--mode n] [--num-events n] [--occ n] [--unocc n] --yes
   ${command} water [id]
   ${command} water reset-runtime --id <id> --type <type> --yes
   ${command} water reset-energy-runtime --yes

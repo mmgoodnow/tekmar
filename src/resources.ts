@@ -14,11 +14,13 @@ export async function temperatures(client: TekmarClient, id?: string) {
 export async function rawTemperatures(client: TekmarClient, id?: string) {
   const path = id ? `/temperatures/${id}` : "/temperatures";
   const html = await client.get(path);
+  const thermostatRows = id ? [] : await temperatureAjaxRows(client, html);
   return {
     path,
     headings: headings(html),
     links: parseLinks(html).filter((link) => link.href.includes("/temperatures/")),
     tables: parseTables(html),
+    thermostatRows,
     forms: summarizeForms(html),
   };
 }
@@ -43,6 +45,7 @@ export async function rawScenes(client: TekmarClient, id?: string) {
     headings: headings(html),
     links: parseLinks(html),
     tables: parseTables(html),
+    sceneLabels: id ? {} : sceneLabels(html),
     forms: summarizeForms(html),
   };
 }
@@ -67,6 +70,7 @@ export async function rawSchedules(client: TekmarClient, detail?: string) {
     headings: headings(html),
     links: parseLinks(html),
     tables: parseTables(html),
+    scheduleRows: detail ? [] : scheduleRows(html),
     forms: summarizeForms(html),
   };
 }
@@ -156,29 +160,59 @@ function summarizeForms(html: string) {
         name: control.name,
         value: control.type === "hidden" && control.name === "authenticity_token" ? "[csrf]" : control.value,
         checked: control.checked,
-        options: control.options?.map((option) => option.text),
+        options: control.options?.map((option) => ({ value: option.value, text: option.text })),
       })),
   }));
 }
 
-type RawPage = Awaited<ReturnType<typeof rawTemperatures>>;
+type RawPage = {
+  path: string;
+  headings: string[];
+  links: Array<{ href: string; text: string }>;
+  tables: string[][][];
+  thermostatRows?: Array<{ id: string; cells: string[] }>;
+  sceneLabels?: Record<string, string>;
+  scheduleRows?: Array<{ id: string; name: string; master: string; memberZones: string[] }>;
+  forms: ReturnType<typeof summarizeForms>;
+};
 
 function temperatureList(raw: RawPage) {
   const idByName = idsByLinkedName(raw.links, /\/temperatures\/(\d+)/);
-  const zones = raw.tables
-    .flatMap((table) => table.slice(1))
-    .filter((row) => row.length >= 4 && row[0])
+  const rows: Array<{ id?: string; cells: string[] }> = raw.thermostatRows?.length ? raw.thermostatRows : raw.tables.flatMap((table) => table.slice(1).map((row) => ({ cells: row })));
+  const zones = rows
+    .filter((row) => row.cells.length >= 4 && row.cells[0])
     .map((row) => ({
-      id: idByName.get(row[0]),
-      name: row[0],
-      temperatureF: numberOrNull(row[1]),
-      heatSetpointF: numberOrNull(row[2]),
-      coolSetpointF: numberOrNull(row[3]),
+      id: row.id ?? idByName.get(row.cells[0]),
+      name: row.cells[0],
+      temperatureF: numberOrNull(row.cells[1]),
+      heatSetpointF: numberOrNull(row.cells[2]),
+      coolSetpointF: numberOrNull(row.cells[3]),
     }));
   return {
     outdoorTemperatureF: numberOrNull(raw.headings.join(" ").match(/(-?\d+(?:\.\d+)?)\s*°F/)?.[1]),
     zones,
   };
+}
+
+async function temperatureAjaxRows(client: TekmarClient, html: string): Promise<Array<{ id: string; cells: string[] }>> {
+  const ids = [...new Set([...html.matchAll(/\bid=["']thermostat(\d+)["']/gi)].map((match) => match[1]!).filter(Boolean))];
+  const rows = await Promise.all(ids.map(async (id) => {
+    const js = await client.get(`/temperatures/area_thermostat?thermostat_id=${id}`);
+    const fragment = ajaxHtmlFragment(js);
+    const cells = parseTables(`<table><tr>${fragment}</tr></table>`)[0]?.[0] ?? [];
+    return { id, cells };
+  }));
+  return rows.filter((row) => row.cells.length > 0);
+}
+
+function ajaxHtmlFragment(js: string): string {
+  const raw = js.match(/myhtml="([\s\S]*?)"\s*\n?\s*\$\('thermostat\d+'\)\.replace\(myhtml\);?/)?.[1];
+  if (!raw) return "";
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw.replace(/\\\//g, "/").replace(/\\"/g, '"').replace(/\\n/g, "\n");
+  }
 }
 
 function temperatureDetail(id: string, raw: RawPage) {
@@ -204,10 +238,19 @@ function sceneList(raw: RawPage) {
     currentSceneId: controls.find((control) => control.checked)?.value,
     scenes: controls.map((control, index) => ({
       id: control.value,
+      name: raw.sceneLabels?.[control.value ?? ""],
       current: Boolean(control.checked),
-      detailPath: details[index]?.href,
+      detailPath: pathOnly(details[index]?.href),
     })),
   };
+}
+
+function sceneLabels(html: string): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const match of html.matchAll(/<label\b[^>]*for=["']tn4_id_(\d+)["'][^>]*>([\s\S]*?)<\/label>/gi)) {
+    labels[match[1]!] = stripTags(match[2] ?? "");
+  }
+  return labels;
 }
 
 function sceneDetail(id: string, raw: RawPage) {
@@ -222,9 +265,11 @@ function sceneDetail(id: string, raw: RawPage) {
 function scheduleList(raw: RawPage) {
   return {
     networkTime: raw.headings.find((heading) => heading.includes("Network Time")),
-    schedules: raw.links
-      .map((link) => ({ id: link.href.match(/\/schedules\/([^/?#]+)/)?.[1], name: link.text }))
-      .filter((schedule) => schedule.id),
+    schedules: raw.scheduleRows?.length
+      ? raw.scheduleRows
+      : raw.links
+        .map((link) => ({ id: link.href.match(/\/schedules\/([^/?#]+)/)?.[1], name: link.text, master: "", memberZones: [] }))
+        .filter((schedule) => schedule.id),
   };
 }
 
@@ -233,15 +278,31 @@ function scheduleDetail(id: string, raw: RawPage) {
   return {
     id,
     networkTime: raw.headings.find((heading) => heading.includes("Network Time")),
-    mode: selectValue(controls, "mode"),
+    mode: selectText(controls, "mode"),
     eventCount: numberOrNull(selectValue(controls, "num_events")),
-    events: {
-      wake: selectValue(controls, "events[Wake][all_days]"),
-      sleep: selectValue(controls, "events[Sleep][all_days]"),
+    times: {
+      occ: selectText(controls, "events[Wake][all_days]"),
+      unocc: selectText(controls, "events[Sleep][all_days]"),
     },
     availableModes: selectOptions(controls, "mode"),
     availableEventCounts: selectOptions(controls, "num_events"),
   };
+}
+
+function scheduleRows(html: string): Array<{ id: string; name: string; master: string; memberZones: string[] }> {
+  return [...html.matchAll(/<div\b[^>]*class=["'][^"']*scheduleFields[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi)]
+    .map((match) => {
+      const block = match[1] ?? "";
+      const link = parseLinks(block).find((candidate) => candidate.href.includes("/schedules/"));
+      const fields = [...block.matchAll(/<div\b[^>]*class=["'][^"']*scheduleField["'][^>]*>([\s\S]*?)<\/div>/gi)].map((field) => stripTags(field[1] ?? ""));
+      return {
+        id: link?.href.match(/\/schedules\/([^/?#]+)/)?.[1] ?? "",
+        name: link?.text ?? fields[0] ?? "",
+        master: fields[1] ?? "",
+        memberZones: [...block.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].map((zone) => stripTags(zone[1] ?? "")).filter(Boolean),
+      };
+    })
+    .filter((row) => row.id);
 }
 
 function waterTemperatureList(raw: RawPage) {
@@ -289,8 +350,22 @@ function selectValue(controls: Array<{ name?: string; value?: string }>, name: s
   return controls.find((control) => control.name === name)?.value;
 }
 
-function selectOptions(controls: Array<{ name?: string; options?: string[] }>, name: string): string[] {
-  return controls.find((control) => control.name === name)?.options ?? [];
+function selectText(controls: Array<{ name?: string; value?: string; options?: Array<{ value: string; text: string }> }>, name: string): string | undefined {
+  const control = controls.find((candidate) => candidate.name === name);
+  return control?.options?.find((option) => option.value === control.value)?.text ?? control?.value;
+}
+
+function selectOptions(controls: Array<{ name?: string; options?: Array<{ value: string; text: string }> }>, name: string): string[] {
+  return controls.find((control) => control.name === name)?.options?.map((option) => option.text) ?? [];
+}
+
+function pathOnly(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  try {
+    return new URL(href).pathname;
+  } catch {
+    return href;
+  }
 }
 
 function graphSeries(html: string) {

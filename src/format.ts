@@ -48,8 +48,10 @@ function formatTemperatureDetail(value: AnyRecord): string {
 
 function formatSceneList(value: AnyRecord): string {
   const scenes = arrayOfRecords(value.scenes);
-  return [`Current scene: ${text(value.currentSceneId)}`, "", table(["ID", "Current", "Detail"], scenes.map((scene) => [
+  const current = scenes.find((scene) => scene.current);
+  return [`Current scene: ${text(current?.name ?? value.currentSceneId)}`, "", table(["ID", "Scene", "Current", "Detail"], scenes.map((scene) => [
     text(scene.id),
+    text(scene.name),
     scene.current ? "*" : "",
     text(scene.detailPath),
   ]))].join("\n");
@@ -62,18 +64,23 @@ function formatSceneDetail(value: AnyRecord): string {
 
 function formatScheduleList(value: AnyRecord): string {
   const schedules = arrayOfRecords(value.schedules);
-  return [`${text(value.networkTime)}`, "", table(["ID", "Schedule"], schedules.map((schedule) => [text(schedule.id), text(schedule.name)]))].join("\n");
+  return [`${text(value.networkTime)}`, "", table(["ID", "Schedule", "Master", "Zones"], schedules.map((schedule) => [
+    text(schedule.id),
+    text(schedule.name),
+    text(schedule.master),
+    arrayOfStrings(schedule.memberZones).join(", "),
+  ]))].join("\n");
 }
 
 function formatScheduleDetail(value: AnyRecord): string {
-  const events = isRecord(value.events) ? value.events : {};
+  const times = isRecord(value.times) ? value.times : {};
   return [
     `Schedule ${text(value.id)}`,
     `${text(value.networkTime)}`,
     `Mode: ${text(value.mode)}${arrayOfStrings(value.availableModes).length ? ` (${arrayOfStrings(value.availableModes).join(", ")})` : ""}`,
     `Events: ${text(value.eventCount)}${arrayOfStrings(value.availableEventCounts).length ? ` (${arrayOfStrings(value.availableEventCounts).join(", ")})` : ""}`,
-    `Wake: ${text(events.wake)}`,
-    `Sleep: ${text(events.sleep)}`,
+    `Occ: ${text(times.occ)}`,
+    `UnOcc: ${text(times.unocc)}`,
   ].join("\n");
 }
 
@@ -141,4 +148,3 @@ function arrayOfRecords(value: unknown): AnyRecord[] {
 function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.map(text).filter((entry) => entry !== "-") : [];
 }
-
