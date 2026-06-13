@@ -1,4 +1,4 @@
-import { formBody, parseForms, parseLinks, parseTables, stripTags } from "./html";
+import { formBody, parseForms, parseLinks, parseTables, stripTags, type HtmlForm } from "./html";
 import type { TekmarClient } from "./client";
 
 export function requireYes(options: Record<string, string | boolean>): void {
@@ -54,8 +54,8 @@ export async function schedules(client: TekmarClient, detail?: string) {
 }
 
 export async function setSystemSchedule(client: TekmarClient, options: { mode?: string; numEvents?: string; wake?: string; sleep?: string }) {
-  const { form } = await client.formFor("/schedules/system-1", () => true);
-  const body = formBody(form, {
+  const html = await client.get("/schedules/system-1");
+  const body = formBodyFromForms(parseForms(html), {
     ...(options.mode ? { mode: options.mode } : {}),
     ...(options.numEvents ? { num_events: options.numEvents } : {}),
     ...(options.wake ? { "events[Wake][all_days]": options.wake } : {}),
@@ -127,17 +127,50 @@ function summarizeForms(html: string) {
 
 function graphSeries(html: string) {
   const series: Array<{ name: string; points: Array<[number, number]> }> = [];
-  for (const match of html.matchAll(/\b([A-Za-z][A-Za-z0-9_]*)\s*=\s*(\[\s*\[[\s\S]*?\]\s*\])\s*;/g)) {
-    const name = match[1] ?? "";
-    const raw = match[2] ?? "[]";
+  for (const { name, raw } of extractArrayAssignments(html)) {
     try {
       const points = JSON.parse(raw.replace(/,\s*]/g, "]")) as Array<[number, number]>;
-      if (Array.isArray(points)) series.push({ name, points });
+      if (isPointSeries(points)) series.push({ name, points });
     } catch {
       // Ignore non-data assignments.
     }
   }
   return series;
+}
+
+function isPointSeries(value: unknown): value is Array<[number, number]> {
+  return Array.isArray(value) && value.some((point) => Array.isArray(point) && point.length === 2 && point.every((entry) => typeof entry === "number"));
+}
+
+function extractArrayAssignments(html: string): Array<{ name: string; raw: string }> {
+  const assignments: Array<{ name: string; raw: string }> = [];
+  const pattern = /\b(?:var\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=\s*\[/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html))) {
+    const name = match[1]!;
+    let depth = 1;
+    let cursor = pattern.lastIndex;
+    while (cursor < html.length && depth > 0) {
+      const char = html[cursor++];
+      if (char === "[") depth += 1;
+      if (char === "]") depth -= 1;
+    }
+    const raw = `[${html.slice(pattern.lastIndex, cursor)}`;
+    if (depth === 0 && raw.includes("[")) assignments.push({ name, raw });
+    pattern.lastIndex = cursor;
+  }
+  return assignments;
+}
+
+function formBodyFromForms(forms: HtmlForm[], overrides: Record<string, string>): URLSearchParams {
+  const body = new URLSearchParams();
+  for (const form of forms) {
+    for (const [key, value] of formBody(form, overrides)) {
+      if (!body.has(key)) body.append(key, value);
+    }
+  }
+  for (const [key, value] of Object.entries(overrides)) body.set(key, value);
+  return body;
 }
 
 function currentCanonicalPath(html: string): string | undefined {
@@ -149,4 +182,3 @@ function currentCanonicalPath(html: string): string | undefined {
     return canonical;
   }
 }
-

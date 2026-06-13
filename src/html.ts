@@ -23,6 +23,9 @@ export function decodeHtml(input: string): string {
   return input
     .replace(/&nbsp;/g, " ")
     .replace(/&#x2713;/g, "✓")
+    .replace(/&deg;/g, "°")
+    .replace(/&ndash;/g, "-")
+    .replace(/&mdash;/g, "-")
     .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -140,4 +143,3 @@ export function formBody(form: HtmlForm, overrides: Record<string, string>): URL
   }
   return body;
 }
-

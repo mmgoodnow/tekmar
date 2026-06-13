@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
-import { graphCsv } from "../src/resources";
+import { graphCsv, graphs } from "../src/resources";
 
 test("parses Rails forms and builds override body", () => {
   const html = `<form action="/temperatures/9" method="post">
@@ -48,3 +48,19 @@ test("graph csv posts csv_x to graph form", async () => {
   expect(calls[1]?.body?.get("csv_x")).toBe("CSV Export");
 });
 
+test("parses legacy entities and inline graph series", async () => {
+  const client = {
+    async get() {
+      return `<h4>Current outdoor temperature: 79 &deg;F</h4>
+      <script>
+        var OutdoorTemperature=[[
+          0, 80.2],
+        ];
+      </script>
+      <form action="/graphs/show" method="post"></form>`;
+    },
+  };
+  const result = await graphs(client as never);
+  expect(result.headings).toEqual(["Current outdoor temperature: 79 °F"]);
+  expect(result.series).toEqual([{ name: "OutdoorTemperature", points: [[0, 80.2]] }]);
+});
