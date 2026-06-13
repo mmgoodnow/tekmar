@@ -1,0 +1,19 @@
+{
+  "name": "tekmar",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "tekmar": "./src/cli.ts"
+  },
+  "scripts": {
+    "cli": "bun run src/cli.ts",
+    "test": "bun test",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}
+
