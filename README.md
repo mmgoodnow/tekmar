@@ -38,3 +38,32 @@ tekmar graphs csv --out graph.csv
 Read commands print readable summaries by default. `tekmar temperatures` streams each room as it is loaded from the gateway. Add `--json` for buffered domain-shaped JSON, or `--raw` to inspect parsed forms, links, and tables while reverse engineering.
 
 Write commands require `--yes`.
+
+## Daemon
+
+Run the local JSON API:
+
+```sh
+bun run daemon
+```
+
+By default it listens on `http://127.0.0.1:7348`. Set `TEKMAR_DAEMON_HOST`, `TEKMAR_DAEMON_PORT`, or `TEKMAR_CACHE_TTL_MS` to change the bind address, port, or read cache TTL.
+
+Endpoints:
+
+```text
+GET /api/health
+GET /api/temperatures
+GET /api/temperatures/:id
+PUT /api/temperatures/:id/mode        {"mode":"..."}
+GET /api/scenes
+GET /api/scenes/:id
+PUT /api/scenes/active                {"id":"..."}
+GET /api/schedules
+GET /api/schedules/system-1
+PUT /api/schedules/system-1           {"mode":"...","numEvents":"...","occ":"...","unocc":"..."}
+GET /api/water-temperatures
+GET /api/water-temperatures/:id
+GET /api/graphs
+GET /api/graphs.csv
+```

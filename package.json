@@ -8,6 +8,7 @@
   },
   "scripts": {
     "cli": "bun run src/cli.ts",
+    "daemon": "bun run src/server.ts",
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit"
   },
@@ -16,4 +17,3 @@
     "typescript": "^5.9.3"
   }
 }
-
