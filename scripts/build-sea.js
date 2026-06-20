@@ -161,7 +161,7 @@ async function notarizeDarwinBinary(outputPath) {
 	if (!notaryProfile) return;
 	const zipPath = `${outputPath}.zip`;
 	await rm(zipPath, { force: true });
-	await run("ditto", ["-c", "-k", "--keepParent", outputPath, zipPath]);
+	await run("ditto", ["-c", "-k", basename(outputPath), zipPath], { cwd: dirname(outputPath) });
 	const raw = await output("xcrun", ["notarytool", "submit", zipPath, "--keychain-profile", notaryProfile, "--wait", "--output-format", "json"]);
 	const result = JSON.parse(raw);
 	if (result.status !== "Accepted") {
