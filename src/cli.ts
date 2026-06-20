@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { TekmarClient } from "./client.js";
 import { formatDomain, formatSuccess } from "./format.js";
@@ -29,9 +30,10 @@ type Parsed = {
 };
 
 async function main() {
-  const parsed = parseArgs(Bun.argv.slice(2));
+  const argv = process.argv;
+  const parsed = parseArgs(argv.slice(2));
   const [resource, subcommand, maybeId] = parsed.positionals;
-  if (!resource || resource === "help" || resource === "--help") return help(commandName(Bun.argv));
+  if (!resource || resource === "help" || resource === "--help") return help(commandName(argv));
 
   const client = new TekmarClient();
   await client.ensureAuthenticated();
@@ -95,7 +97,7 @@ async function main() {
         const csv = await graphCsv(client);
         const out = stringOption(parsed.options.out);
         if (out) {
-          await Bun.write(out, csv);
+          await writeFile(out, csv);
           return printSuccess({ ok: true, out }, parsed.options);
         }
         process.stdout.write(csv);

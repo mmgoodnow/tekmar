@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { TekmarDaemon } from "../src/daemon";
 
 test("serves cached temperature reads", async () => {
@@ -16,9 +17,9 @@ test("serves cached temperature reads", async () => {
   const first = await daemon.handle(new Request("http://localhost/api/temperatures"));
   const second = await daemon.handle(new Request("http://localhost/api/temperatures"));
 
-  expect(first.status).toBe(200);
-  expect(second.status).toBe(200);
-  expect(calls).toBe(1);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.equal(calls, 1);
 });
 
 test("serializes writes and invalidates changed temperature cache", async () => {
@@ -57,11 +58,11 @@ test("serializes writes and invalidates changed temperature cache", async () => 
   const second = daemon.handle(new Request("http://localhost/api/temperatures/9/mode", { method: "PUT", body: JSON.stringify({ mode: "3" }) }));
 
   await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(calls).toEqual(["get /temperatures", "form /temperatures/9", "put /temperatures/9"]);
+  assert.deepEqual(calls, ["get /temperatures", "form /temperatures/9", "put /temperatures/9"]);
   pendingFirstWrite?.();
-  expect((await first).status).toBe(200);
-  expect((await second).status).toBe(200);
+  assert.equal((await first).status, 200);
+  assert.equal((await second).status, 200);
 
   await daemon.handle(new Request("http://localhost/api/temperatures"));
-  expect(calls.filter((call) => call === "get /temperatures")).toHaveLength(2);
+  assert.equal(calls.filter((call) => call === "get /temperatures").length, 2);
 });

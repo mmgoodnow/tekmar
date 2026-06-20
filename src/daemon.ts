@@ -211,7 +211,7 @@ function setpointKind(body: JsonBody): "heat" | "cool" {
 }
 
 function numberEnv(name: string): number | undefined {
-  const value = Bun.env[name];
+  const value = process.env[name];
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;

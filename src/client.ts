@@ -119,5 +119,5 @@ export class TekmarClient {
 }
 
 function env(name: string): string | undefined {
-  return globalThis.Bun?.env[name] ?? process.env[name];
+  return process.env[name];
 }

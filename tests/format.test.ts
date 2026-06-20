@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { formatDomain, formatSuccess } from "../src/format";
 
 test("formats temperature list as a table", () => {
@@ -7,9 +8,9 @@ test("formats temperature list as a table", () => {
     zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
   });
 
-  expect(output).toContain("Outdoor: 79 F");
-  expect(output).toContain("ID  Zone");
-  expect(output).toContain("9   Sunroom  75 F  64 F  -");
+  assert.match(output, /Outdoor: 79 F/);
+  assert.match(output, /ID  Zone/);
+  assert.match(output, /9   Sunroom  75 F  64 F  -/);
 });
 
 test("formats schedule detail as labeled fields", () => {
@@ -23,12 +24,12 @@ test("formats schedule detail as labeled fields", () => {
     availableEventCounts: ["2", "4"],
   });
 
-  expect(output).toContain("Schedule system-1");
-  expect(output).toContain("Mode: 0 (24hr, 5-2)");
-  expect(output).toContain("Occ: 48");
+  assert.match(output, /Schedule system-1/);
+  assert.match(output, /Mode: 0 \(24hr, 5-2\)/);
+  assert.match(output, /Occ: 48/);
 });
 
 test("formats success output", () => {
-  expect(formatSuccess({ ok: true })).toBe("OK");
-  expect(formatSuccess({ ok: true, out: "graph.csv" })).toBe("Wrote graph.csv");
+  assert.equal(formatSuccess({ ok: true }), "OK");
+  assert.equal(formatSuccess({ ok: true, out: "graph.csv" }), "Wrote graph.csv");
 });

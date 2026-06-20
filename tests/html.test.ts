@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
 import { graphCsv, graphs, setTemperatureSetpoint, streamTemperatures, temperatures } from "../src/resources";
 
@@ -12,15 +13,15 @@ test("parses Rails forms and builds override body", () => {
   </form>`;
 
   const [form] = parseForms(html);
-  expect(csrfToken(html)).toBe("abc");
-  expect(form?.action).toBe("/temperatures/9");
-  expect(formBody(form!, { "device[mode_setting]": "2" }).get("device[mode_setting]")).toBe("2");
+  assert.equal(csrfToken(html), "abc");
+  assert.equal(form?.action, "/temperatures/9");
+  assert.equal(formBody(form!, { "device[mode_setting]": "2" }).get("device[mode_setting]"), "2");
 });
 
 test("parses links and tables", () => {
   const html = `<a href="/temperatures/9">Sunroom</a><table><tr><th>Name</th><td>Temp</td></tr></table>`;
-  expect(parseLinks(html)).toEqual([{ href: "/temperatures/9", text: "Sunroom" }]);
-  expect(parseTables(html)).toEqual([[["Name", "Temp"]]]);
+  assert.deepEqual(parseLinks(html), [{ href: "/temperatures/9", text: "Sunroom" }]);
+  assert.deepEqual(parseTables(html), [[["Name", "Temp"]]]);
 });
 
 test("graph csv posts csv_x to graph form", async () => {
@@ -43,9 +44,9 @@ test("graph csv posts csv_x to graph form", async () => {
   };
 
   const csv = await graphCsv(client as never);
-  expect(csv).toBe("csv");
-  expect(calls[1]?.path).toBe("/graphs/show");
-  expect(calls[1]?.body?.get("csv_x")).toBe("CSV Export");
+  assert.equal(csv, "csv");
+  assert.equal(calls[1]?.path, "/graphs/show");
+  assert.equal(calls[1]?.body?.get("csv_x"), "CSV Export");
 });
 
 test("temperature setpoint posts the selected heating or cooling field", async () => {
@@ -68,8 +69,8 @@ test("temperature setpoint posts the selected heating or cooling field", async (
   };
 
   await setTemperatureSetpoint(client as never, "9", "heat", 67);
-  expect(calls[1]?.path).toBe("/temperatures/9");
-  expect(calls[1]?.body?.get("device[heating_setpoint]")).toBe("67");
+  assert.equal(calls[1]?.path, "/temperatures/9");
+  assert.equal(calls[1]?.body?.get("device[heating_setpoint]"), "67");
 });
 
 
@@ -86,7 +87,7 @@ test("parses legacy entities and inline graph series", async () => {
     },
   };
   const result = await graphs(client as never);
-  expect(result.series).toEqual([{ name: "OutdoorTemperature", pointCount: 1, first: [0, 80.2], last: [0, 80.2] }]);
+  assert.deepEqual(result.series, [{ name: "OutdoorTemperature", pointCount: 1, first: [0, 80.2], last: [0, 80.2] }]);
 });
 
 test("returns a domain temperature list", async () => {
@@ -100,7 +101,7 @@ test("returns a domain temperature list", async () => {
       </table>`;
     },
   };
-  expect(await temperatures(client as never)).toEqual({
+  assert.deepEqual(await temperatures(client as never), {
     outdoorTemperatureF: 79,
     zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
   });
@@ -116,7 +117,7 @@ test("returns a domain temperature detail", async () => {
       </form>`;
     },
   };
-  expect(await temperatures(client as never, "9")).toEqual({
+  assert.deepEqual(await temperatures(client as never, "9"), {
     id: "9",
     name: "Sunroom",
     area: "First Floor",
@@ -144,7 +145,7 @@ test("returns Ajax-loaded temperature rows", async () => {
     },
   };
 
-  expect(await temperatures(client as never)).toEqual({
+  assert.deepEqual(await temperatures(client as never), {
     outdoorTemperatureF: 79,
     zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
   });
@@ -163,7 +164,7 @@ test("streams Ajax-loaded temperature rows", async () => {
 
   const events = [];
   for await (const event of streamTemperatures(client as never)) events.push(event);
-  expect(events).toEqual([
+  assert.deepEqual(events, [
     { type: "outdoor", outdoorTemperatureF: 79 },
     { type: "zone", zone: { id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null } },
   ]);

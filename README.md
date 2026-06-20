@@ -5,7 +5,7 @@ Homebridge plugin, daemon, and CLI for the Rails-based tekmar tN4 Gateway web UI
 ## Setup
 
 ```sh
-bun install
+npm install
 cp .env.example .env
 ```
 
@@ -44,7 +44,7 @@ Write commands require `--yes`.
 Build the plugin:
 
 ```sh
-bun run build
+npm run build
 ```
 
 Example Homebridge platform config:
@@ -67,7 +67,7 @@ Each Tekmar thermostat zone is exposed as an Apple Home thermostat accessory. Ap
 Run the local JSON API:
 
 ```sh
-bun run daemon
+npm run daemon
 ```
 
 By default it listens on `http://127.0.0.1:7348`. Set `TEKMAR_DAEMON_HOST`, `TEKMAR_DAEMON_PORT`, or `TEKMAR_CACHE_TTL_MS` to change the bind address, port, or read cache TTL.
