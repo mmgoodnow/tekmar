@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ const entitlementsPath = join(repoRoot, "entitlements.plist");
 const nodeVersion = process.env.NODE_VERSION ?? process.version;
 const notaryProfile = process.env.NOTARY_PROFILE;
 const targetFilter = process.env.SEA_TARGETS?.split(",").map((target) => target.trim()).filter(Boolean);
+const hapVersion = JSON.parse(await readFile(join(repoRoot, "node_modules/@homebridge/hap-nodejs/package.json"), "utf8")).version;
 
 const targets = [
   { os: "darwin", arch: "x64", archive: "tar.xz", binPath: "bin/node" },
@@ -88,6 +89,7 @@ async function getNodeExecutable({ os, arch, archive, binPath }) {
 async function buildBundle(bundlePath) {
   await viteBuild({
     configFile: false,
+    plugins: [inlineHapPackageVersion()],
     root: repoRoot,
     publicDir: false,
     logLevel: "warn",
@@ -109,6 +111,27 @@ async function buildBundle(bundlePath) {
       noExternal: true,
     },
   });
+}
+
+function inlineHapPackageVersion() {
+  return {
+    name: "inline-hap-package-version",
+    transform(code, id) {
+      if (id.endsWith("@homebridge/hap-nodejs/dist/index.js")) {
+        return code.replace(
+          /function HAPLibraryVersion\(\) \{[\s\S]*?\n\}/,
+          `function HAPLibraryVersion() {\n    return ${JSON.stringify(hapVersion)};\n}`,
+        );
+      }
+      if (id.endsWith("@homebridge/hap-nodejs/dist/lib/model/AccessoryInfo.js")) {
+        return code.replace(
+          /function getVersion\(\) \{[\s\S]*?\n\}/,
+          `function getVersion() {\n    return ${JSON.stringify(hapVersion)};\n}`,
+        );
+      }
+      return null;
+    },
+  };
 }
 
 async function signDarwinBinary(outputPath) {
