@@ -62,6 +62,41 @@ Example Homebridge platform config:
 
 Each Tekmar thermostat zone is exposed as an Apple Home thermostat accessory. Apple Home rooms, zones, scenes, and automations should own grouping and scheduling where possible. Run Homebridge on the same home network as the Tekmar gateway, normally the Mac mini hosting the existing Tekmar software. Running Homebridge remotely from another city is possible only with a reliable VPN that makes HomeKit discovery and Tekmar access behave like local network traffic, and is not the recommended default.
 
+## Standalone HomeKit Bridge
+
+Run the HomeKit bridge directly, without installing Homebridge:
+
+```sh
+npm run homekit
+```
+
+Environment variables:
+
+```text
+TEKMAR_BASE_URL=
+TEKMAR_LOGIN=
+TEKMAR_PASSWORD=
+TEKMAR_HOMEKIT_NAME=Tekmar
+TEKMAR_HOMEKIT_PIN=031-45-154
+TEKMAR_HOMEKIT_STORAGE=~/.tekmar-homekit
+```
+
+The standalone bridge uses `@homebridge/hap-nodejs`, the same HAP library Homebridge uses internally. It advertises one HomeKit bridge and exposes each Tekmar zone as a bridged thermostat.
+
+Build a single-file binary for the current Mac architecture:
+
+```sh
+SEA_TARGETS=darwin-arm64 npm run build:sea
+```
+
+Build and notarize after installing a `Developer ID Application` certificate and creating the `notarytool` profile:
+
+```sh
+SEA_TARGETS=darwin-arm64 NOTARY_PROFILE=tekmar npm run build:sea
+```
+
+`Apple Development` certificates can sign a local development binary, but Apple notarization requires a `Developer ID Application` certificate.
+
 ## Daemon
 
 Run the local JSON API:

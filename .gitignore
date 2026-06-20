@@ -7,4 +7,5 @@ authenticated.yaml
 node_modules/
 coverage/
 dist/
+sea/
 /tekmar

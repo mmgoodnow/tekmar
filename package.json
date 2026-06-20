@@ -14,12 +14,15 @@
     "node": "^22 || ^24"
   },
   "bin": {
-    "tekmar": "./dist/cli.js"
+    "tekmar": "./dist/cli.js",
+    "tekmar-homekit": "./dist/homekit-cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:sea": "npm run build && node scripts/build-sea.js",
     "cli": "tsx src/cli.ts",
     "daemon": "tsx src/server.ts",
+    "homekit": "tsx src/homekit-cli.ts",
     "start": "node dist/server.js",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
@@ -28,6 +31,10 @@
     "@types/node": "^26.0.0",
     "homebridge": "^2.1.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.0.14"
+  },
+  "dependencies": {
+    "@homebridge/hap-nodejs": "^2.1.7"
   }
 }
