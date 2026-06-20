@@ -7,6 +7,7 @@ import { build as viteBuild } from "vite";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const seaDir = join(repoRoot, "sea");
+const entitlementsPath = join(repoRoot, "entitlements.plist");
 const nodeVersion = process.env.NODE_VERSION ?? process.version;
 const notaryProfile = process.env.NOTARY_PROFILE;
 const targetFilter = process.env.SEA_TARGETS?.split(",").map((target) => target.trim()).filter(Boolean);
@@ -116,7 +117,7 @@ async function signDarwinBinary(outputPath) {
   if (notaryProfile && !identity.startsWith("Developer ID Application:")) {
     throw new Error(`Notarization requires a Developer ID Application certificate. Found: ${identity}`);
   }
-  await run("codesign", ["--force", "--timestamp", "--options", "runtime", "--sign", identity, outputPath]);
+  await run("codesign", ["--force", "--timestamp", "--options", "runtime", "--entitlements", entitlementsPath, "--sign", identity, outputPath]);
   await run("codesign", ["--verify", "--strict", "--verbose=2", outputPath]);
   console.log(`Signed ${outputPath} with ${identity}`);
   await notarizeDarwinBinary(outputPath);
