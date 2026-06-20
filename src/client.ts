@@ -1,4 +1,4 @@
-import { csrfToken, parseForms } from "./html";
+import { csrfToken, parseForms } from "./html.js";
 
 export type TekmarClientOptions = {
   baseUrl?: string;
@@ -20,12 +20,12 @@ export class TekmarClient {
   private password?: string;
 
   constructor(options: TekmarClientOptions = {}) {
-    const baseUrl = options.baseUrl ?? Bun.env.TEKMAR_BASE_URL;
+    const baseUrl = options.baseUrl ?? env("TEKMAR_BASE_URL");
     if (!baseUrl) throw new Error("TEKMAR_BASE_URL is required.");
     this.baseUrl = baseUrl.replace(/\/$/, "");
-    this.login = options.login ?? Bun.env.TEKMAR_LOGIN;
-    this.password = options.password ?? Bun.env.TEKMAR_PASSWORD;
-    const sessionCookie = options.sessionCookie ?? Bun.env.TEKMAR_SESSION_COOKIE;
+    this.login = options.login ?? env("TEKMAR_LOGIN");
+    this.password = options.password ?? env("TEKMAR_PASSWORD");
+    const sessionCookie = options.sessionCookie ?? env("TEKMAR_SESSION_COOKIE");
     if (sessionCookie) this.storeCookie(sessionCookie);
   }
 
@@ -116,4 +116,8 @@ export class TekmarClient {
       this.cookies.set(pair.slice(0, equals), pair.slice(equals + 1));
     }
   }
+}
+
+function env(name: string): string | undefined {
+  return globalThis.Bun?.env[name] ?? process.env[name];
 }

@@ -1,4 +1,4 @@
-import { TekmarClient } from "./client";
+import { TekmarClient } from "./client.js";
 import {
   graphCsv,
   graphs,
@@ -7,9 +7,10 @@ import {
   setScene,
   setSystemSchedule,
   setTemperatureMode,
+  setTemperatureSetpoint,
   temperatures,
   waterTemperatures,
-} from "./resources";
+} from "./resources.js";
 
 export type DaemonOptions = {
   client?: TekmarClient;
@@ -72,6 +73,15 @@ export class TekmarDaemon {
       return this.write(["temperatures:list", `temperatures:${id}`], async () => {
         await setTemperatureMode(this.client, id, mode);
         return { ok: true, id, mode };
+      });
+    }
+    if (request.method === "PUT" && resource === "temperatures" && id && action === "setpoint") {
+      const body = await jsonBody(request);
+      const kind = setpointKind(body);
+      const temperatureF = numberField(body, "temperatureF");
+      return this.write(["temperatures:list", `temperatures:${id}`], async () => {
+        await setTemperatureSetpoint(this.client, id, kind, temperatureF);
+        return { ok: true, id, kind, temperatureF };
       });
     }
 
@@ -186,6 +196,18 @@ function optionalStringField(body: JsonBody, field: string): string | undefined 
   const value = body[field];
   if (value === undefined || value === null || value === "") return undefined;
   return String(value);
+}
+
+function numberField(body: JsonBody, field: string): number {
+  const value = Number(body[field]);
+  if (!Number.isFinite(value)) throw new Error(`${field} is required.`);
+  return value;
+}
+
+function setpointKind(body: JsonBody): "heat" | "cool" {
+  const value = body.kind;
+  if (value === "heat" || value === "cool") return value;
+  throw new Error("kind is required.");
 }
 
 function numberEnv(name: string): number | undefined {

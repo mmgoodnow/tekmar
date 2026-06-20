@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { basename } from "node:path";
-import { TekmarClient } from "./client";
-import { formatDomain, formatSuccess } from "./format";
+import { TekmarClient } from "./client.js";
+import { formatDomain, formatSuccess } from "./format.js";
 import {
   graphCsv,
   graphs,
@@ -21,7 +21,7 @@ import {
   streamTemperatures,
   temperatures,
   waterTemperatures,
-} from "./resources";
+} from "./resources.js";
 
 type Parsed = {
   positionals: string[];

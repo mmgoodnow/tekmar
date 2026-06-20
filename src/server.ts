@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { createDaemon } from "./daemon";
+import { createDaemon } from "./daemon.js";
 
 const port = Number(Bun.env.PORT ?? Bun.env.TEKMAR_DAEMON_PORT ?? 7348);
 const hostname = Bun.env.HOST ?? Bun.env.TEKMAR_DAEMON_HOST ?? "127.0.0.1";

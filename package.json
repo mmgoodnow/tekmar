@@ -1,19 +1,29 @@
 {
-  "name": "tekmar",
+  "name": "homebridge-tekmar-gateway",
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "main": "dist/homebridge.js",
+  "types": "dist/homebridge.d.ts",
+  "keywords": [
+    "homebridge-plugin",
+    "homebridge",
+    "tekmar"
+  ],
   "bin": {
     "tekmar": "./src/cli.ts"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "cli": "bun run src/cli.ts",
     "daemon": "bun run src/server.ts",
     "test": "bun test",
-    "typecheck": "bun x tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/node": "^26.0.0",
+    "homebridge": "^2.1.0",
     "typescript": "^5.9.3"
   }
 }

@@ -1,6 +1,6 @@
-# tekmar CLI
+# homebridge-tekmar-gateway
 
-Bun CLI for the Rails-based tekmar tN4 Gateway web UI.
+Homebridge plugin, daemon, and CLI for the Rails-based tekmar tN4 Gateway web UI.
 
 ## Setup
 
@@ -39,6 +39,29 @@ Read commands print readable summaries by default. `tekmar temperatures` streams
 
 Write commands require `--yes`.
 
+## Homebridge
+
+Build the plugin:
+
+```sh
+bun run build
+```
+
+Example Homebridge platform config:
+
+```json
+{
+  "platform": "TekmarGateway",
+  "name": "Tekmar",
+  "baseUrl": "https://tekmar.example.test",
+  "login": "username",
+  "password": "password",
+  "pollIntervalSeconds": 30
+}
+```
+
+Each Tekmar thermostat zone is exposed as an Apple Home thermostat accessory. Apple Home rooms, zones, scenes, and automations should own grouping and scheduling where possible. Run Homebridge on the same home network as the Tekmar gateway, normally the Mac mini hosting the existing Tekmar software. Running Homebridge remotely from another city is possible only with a reliable VPN that makes HomeKit discovery and Tekmar access behave like local network traffic, and is not the recommended default.
+
 ## Daemon
 
 Run the local JSON API:
@@ -56,6 +79,7 @@ GET /api/health
 GET /api/temperatures
 GET /api/temperatures/:id
 PUT /api/temperatures/:id/mode        {"mode":"..."}
+PUT /api/temperatures/:id/setpoint    {"kind":"heat","temperatureF":67}
 GET /api/scenes
 GET /api/scenes/:id
 PUT /api/scenes/active                {"id":"..."}

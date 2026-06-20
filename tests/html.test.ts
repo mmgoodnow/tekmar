@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
-import { graphCsv, graphs, streamTemperatures, temperatures } from "../src/resources";
+import { graphCsv, graphs, setTemperatureSetpoint, streamTemperatures, temperatures } from "../src/resources";
 
 test("parses Rails forms and builds override body", () => {
   const html = `<form action="/temperatures/9" method="post">
@@ -47,6 +47,31 @@ test("graph csv posts csv_x to graph form", async () => {
   expect(calls[1]?.path).toBe("/graphs/show");
   expect(calls[1]?.body?.get("csv_x")).toBe("CSV Export");
 });
+
+test("temperature setpoint posts the selected heating or cooling field", async () => {
+  const calls: Array<{ path: string; body?: URLSearchParams }> = [];
+  const client = {
+    async formFor(path: string) {
+      calls.push({ path });
+      return {
+        form: parseForms(`<form action="/temperatures/9" method="post">
+          <input name="authenticity_token" value="abc">
+          <input name="_method" value="put">
+          <input type="radio" name="device[mode_setting]" value="1" checked>
+        </form>`)[0]!,
+      };
+    },
+    async put(path: string, body: URLSearchParams) {
+      calls.push({ path, body });
+      return "";
+    },
+  };
+
+  await setTemperatureSetpoint(client as never, "9", "heat", 67);
+  expect(calls[1]?.path).toBe("/temperatures/9");
+  expect(calls[1]?.body?.get("device[heating_setpoint]")).toBe("67");
+});
+
 
 test("parses legacy entities and inline graph series", async () => {
   const client = {

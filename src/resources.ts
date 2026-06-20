@@ -1,5 +1,5 @@
-import { formBody, parseForms, parseLinks, parseTables, stripTags, type HtmlForm } from "./html";
-import type { TekmarClient } from "./client";
+import { formBody, parseForms, parseLinks, parseTables, stripTags, type HtmlForm } from "./html.js";
+import type { TekmarClient } from "./client.js";
 
 export type TemperatureZone = {
   id?: string;
@@ -50,6 +50,13 @@ export async function* streamTemperatures(client: TekmarClient): AsyncGenerator<
 export async function setTemperatureMode(client: TekmarClient, id: string, mode: string) {
   const { form } = await client.formFor(`/temperatures/${id}`, (action) => action.endsWith(`/temperatures/${id}`));
   const body = formBody(form, { "device[mode_setting]": mode });
+  return client.put(`/temperatures/${id}`, body);
+}
+
+export async function setTemperatureSetpoint(client: TekmarClient, id: string, kind: "heat" | "cool", temperatureF: number) {
+  const { form } = await client.formFor(`/temperatures/${id}`, (action) => action.endsWith(`/temperatures/${id}`));
+  const field = kind === "heat" ? "device[heating_setpoint]" : "device[cooling_setpoint]";
+  const body = formBody(form, { [field]: String(Math.round(temperatureF)) });
   return client.put(`/temperatures/${id}`, body);
 }
 
