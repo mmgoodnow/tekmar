@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
 import { join } from "node:path";
 import {
   Accessory,
@@ -74,7 +74,7 @@ export class TekmarHomeKitBridge {
     this.pin = options.pin ?? env("TEKMAR_HOMEKIT_PIN") ?? DEFAULT_PIN;
     this.setupId = options.setupId ?? env("TEKMAR_HOMEKIT_SETUP_ID") ?? DEFAULT_SETUP_ID;
     this.port = numberOption(options.port, "TEKMAR_HOMEKIT_PORT");
-    this.bind = options.bind ?? env("TEKMAR_HOMEKIT_BIND");
+    this.bind = options.bind ?? env("TEKMAR_HOMEKIT_BIND") ?? defaultHomeKitBind();
     this.pollIntervalMs = Math.max(5, numberOption(options.pollIntervalSeconds, "TEKMAR_HOMEKIT_POLL_INTERVAL_SECONDS") ?? DEFAULT_POLL_INTERVAL_SECONDS) * 1000;
     this.storagePath = options.storagePath ?? env("TEKMAR_HOMEKIT_STORAGE") ?? join(homedir(), ".tekmar-homekit");
   }
@@ -115,6 +115,7 @@ export class TekmarHomeKitBridge {
 
     console.log(`${this.name} HomeKit bridge is running.`);
     console.log(`Pairing code: ${this.pin}`);
+    if (this.bind) console.log(`HomeKit bind interface: ${this.bind}`);
     console.log(`Storage: ${this.storagePath}`);
   }
 
@@ -290,6 +291,15 @@ function celsiusToFahrenheit(value: number): number {
 function numberOption(value: number | undefined, envName: string): number | undefined {
   const parsed = value ?? Number(env(envName));
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function defaultHomeKitBind(): string | undefined {
+  const interfaces = networkInterfaces();
+  const candidates = Object.entries(interfaces)
+    .filter(([name]) => /^en\d+$/.test(name))
+    .filter(([, addresses]) => addresses?.some((address) => address.family === "IPv4" && !address.internal));
+
+  return candidates[0]?.[0];
 }
 
 function env(name: string): string | undefined {
