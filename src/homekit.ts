@@ -141,11 +141,11 @@ export class TekmarHomeKitBridge {
     service.setCharacteristic(Characteristic.Name, zone.name);
 
     service.getCharacteristic(Characteristic.CurrentTemperature)
-      .setProps({ minValue: -40, maxValue: 100, minStep: 0.5 })
+      .setProps({ minValue: -40, maxValue: 100, minStep: 0.1 })
       .on(CharacteristicEventTypes.GET, (callback) => callback(null, this.currentTemperature(zone.id!)));
 
     service.getCharacteristic(Characteristic.TargetTemperature)
-      .setProps({ minValue: fahrenheitToCelsius(40), maxValue: fahrenheitToCelsius(85), minStep: fahrenheitToCelsiusStep(1) })
+      .setProps({ minValue: fahrenheitToCelsius(40), maxValue: fahrenheitToCelsius(85), minStep: 0.1 })
       .on(CharacteristicEventTypes.GET, (callback) => callback(null, this.targetTemperature(zone.id!)))
       .on(CharacteristicEventTypes.SET, (value, callback) => {
         this.setTargetTemperature(zone.id!, Number(value)).then(() => callback()).catch(callback);
@@ -162,6 +162,7 @@ export class TekmarHomeKitBridge {
       });
 
     service.getCharacteristic(Characteristic.TemperatureDisplayUnits)
+      .setValue(Characteristic.TemperatureDisplayUnits.FAHRENHEIT)
       .on(CharacteristicEventTypes.GET, (callback) => callback(null, Characteristic.TemperatureDisplayUnits.FAHRENHEIT));
 
     this.zones.set(zone.id, { accessory, service });
@@ -208,8 +209,8 @@ export class TekmarHomeKitBridge {
   private async setTargetTemperature(id: string, temperatureC: number): Promise<void> {
     const state = this.stateFor(id);
     const kind = setpointKindFor(state);
-    const temperatureF = celsiusToFahrenheit(temperatureC);
-    this.states.set(id, { ...state, [`${kind}SetpointF`]: Math.round(temperatureF) });
+    const temperatureF = Math.round(celsiusToFahrenheit(temperatureC));
+    this.states.set(id, { ...state, [`${kind}SetpointF`]: temperatureF });
     await setTemperatureSetpoint(this.client, id, kind, temperatureF);
     await this.refresh();
   }
@@ -278,10 +279,6 @@ function isTargetHeatingCoolingState(value: number): value is TargetHeatingCooli
 
 function fahrenheitToCelsius(value: number): number {
   return (value - 32) * 5 / 9;
-}
-
-function fahrenheitToCelsiusStep(value: number): number {
-  return value * 5 / 9;
 }
 
 function celsiusToFahrenheit(value: number): number {

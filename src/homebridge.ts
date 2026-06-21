@@ -146,11 +146,11 @@ class TekmarPlatform implements DynamicPlatformPlugin {
     service.setCharacteristic(this.api.hap.Characteristic.Name, accessory.context.name);
 
     service.getCharacteristic(this.api.hap.Characteristic.CurrentTemperature)
-      .setProps({ minValue: -40, maxValue: 100, minStep: 0.5 })
+      .setProps({ minValue: -40, maxValue: 100, minStep: 0.1 })
       .onGet(() => this.currentTemperature(accessory.context.id));
 
     service.getCharacteristic(this.api.hap.Characteristic.TargetTemperature)
-      .setProps({ minValue: fahrenheitToCelsius(40), maxValue: fahrenheitToCelsius(85), minStep: fahrenheitToCelsiusStep(1) })
+      .setProps({ minValue: fahrenheitToCelsius(40), maxValue: fahrenheitToCelsius(85), minStep: 0.1 })
       .onGet(() => this.targetTemperature(accessory.context.id))
       .onSet((value) => this.setTargetTemperature(accessory.context.id, Number(value)));
 
@@ -163,6 +163,7 @@ class TekmarPlatform implements DynamicPlatformPlugin {
       .onSet((value) => this.setTargetHeatingCoolingState(accessory.context.id, Number(value)));
 
     service.getCharacteristic(this.api.hap.Characteristic.TemperatureDisplayUnits)
+      .setValue(this.api.hap.Characteristic.TemperatureDisplayUnits.FAHRENHEIT)
       .onGet(() => this.api.hap.Characteristic.TemperatureDisplayUnits.FAHRENHEIT);
 
     const state = this.states.get(accessory.context.id);
@@ -199,8 +200,8 @@ class TekmarPlatform implements DynamicPlatformPlugin {
   private async setTargetTemperature(id: string, temperatureC: number): Promise<void> {
     const state = this.stateFor(id);
     const kind = setpointKindFor(state);
-    const temperatureF = celsiusToFahrenheit(temperatureC);
-    this.states.set(id, { ...state, [`${kind}SetpointF`]: Math.round(temperatureF) });
+    const temperatureF = Math.round(celsiusToFahrenheit(temperatureC));
+    this.states.set(id, { ...state, [`${kind}SetpointF`]: temperatureF });
     await setTemperatureSetpoint(this.client, id, kind, temperatureF);
     await this.refresh();
   }
@@ -274,10 +275,6 @@ function isTargetHeatingCoolingState(value: number): value is TargetHeatingCooli
 
 function fahrenheitToCelsius(value: number): number {
   return (value - 32) * 5 / 9;
-}
-
-function fahrenheitToCelsiusStep(value: number): number {
-  return value * 5 / 9;
 }
 
 function celsiusToFahrenheit(value: number): number {
