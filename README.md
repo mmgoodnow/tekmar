@@ -1,6 +1,8 @@
-# homebridge-tekmar-gateway
+# tekmar-homekit
 
-Homebridge plugin, daemon, and CLI for the Rails-based tekmar tN4 Gateway web UI.
+Standalone HomeKit bridge for the Rails-based tekmar tN4 Gateway web UI.
+
+The app logs into the existing Tekmar Gateway website, reads thermostat zones, and advertises a single HomeKit bridge with one thermostat accessory per zone. Apple Home owns rooms, scenes, automations, and grouping.
 
 ## Setup
 
@@ -11,79 +13,36 @@ cp .env.example .env
 
 Set `TEKMAR_BASE_URL` to the gateway origin. Authenticate with either `TEKMAR_LOGIN` and `TEKMAR_PASSWORD`, or set `TEKMAR_SESSION_COOKIE` to an existing `_tN4_gateway=...` cookie.
 
-## Commands
-
-```sh
-tekmar temperatures
-tekmar temperatures 9
-tekmar temperatures set-mode 9 1 --yes
-
-tekmar scenes
-tekmar scenes 1
-tekmar scenes set 1 --yes
-
-tekmar schedules
-tekmar schedules system-1
-tekmar schedules system-1 set --mode 0 --num-events 2 --occ 48 --unocc 0 --yes
-
-tekmar water
-tekmar water 1
-tekmar water reset-runtime --id 0 --type boiler --yes
-tekmar water reset-energy-runtime --yes
-
-tekmar graphs
-tekmar graphs csv --out graph.csv
-```
-
-Read commands print readable summaries by default. `tekmar temperatures` streams each room as it is loaded from the gateway. Add `--json` for buffered domain-shaped JSON, or `--raw` to inspect parsed forms, links, and tables while reverse engineering.
-
-Write commands require `--yes`.
-
-## Homebridge
-
-Build the plugin:
-
-```sh
-npm run build
-```
-
-Example Homebridge platform config:
-
-```json
-{
-  "platform": "TekmarGateway",
-  "name": "Tekmar",
-  "baseUrl": "https://tekmar.example.test",
-  "login": "username",
-  "password": "password",
-  "pollIntervalSeconds": 30
-}
-```
-
-Each Tekmar thermostat zone is exposed as an Apple Home thermostat accessory. Apple Home rooms, zones, scenes, and automations should own grouping and scheduling where possible. Run Homebridge on the same home network as the Tekmar gateway, normally the Mac mini hosting the existing Tekmar software. Running Homebridge remotely from another city is possible only with a reliable VPN that makes HomeKit discovery and Tekmar access behave like local network traffic, and is not the recommended default.
-
-## Standalone HomeKit Bridge
-
-Run the HomeKit bridge directly, without installing Homebridge:
+## Run From Source
 
 ```sh
 npm run homekit
 ```
 
-Environment variables:
+Useful environment variables:
 
 ```text
 TEKMAR_BASE_URL=
 TEKMAR_LOGIN=
 TEKMAR_PASSWORD=
+TEKMAR_SESSION_COOKIE=
 TEKMAR_HOMEKIT_NAME=Tekmar
 TEKMAR_HOMEKIT_PIN=031-45-154
+TEKMAR_HOMEKIT_BIND=en0
 TEKMAR_HOMEKIT_STORAGE=~/.tekmar-homekit
 ```
 
-The standalone bridge uses `@homebridge/hap-nodejs`, the same HAP library Homebridge uses internally. It advertises one HomeKit bridge and exposes each Tekmar zone as a bridged thermostat.
+`TEKMAR_HOMEKIT_BIND` is optional. By default the bridge chooses the first active physical Mac interface, usually `en0`.
 
-Build a single-file binary for the current Mac architecture:
+## Build
+
+Build TypeScript:
+
+```sh
+npm run build
+```
+
+Build a single-file Apple Silicon binary:
 
 ```sh
 SEA_TARGETS=darwin-arm64 npm run build:sea
@@ -97,32 +56,14 @@ SEA_TARGETS=darwin-arm64 NOTARY_PROFILE=tekmar npm run build:sea
 
 `Apple Development` certificates can sign a local development binary, but Apple notarization requires a `Developer ID Application` certificate.
 
-## Daemon
+## Release Binary Usage
 
-Run the local JSON API:
+Download `tekmar-homekit-darwin-arm64.zip`, unzip it, and run:
 
 ```sh
-npm run daemon
+./tekmar-homekit-darwin-arm64 --base-url "https://PASTE-TEKMAR-URL-HERE" --login "PASTE-LOGIN-HERE" --password "PASTE-PASSWORD-HERE"
 ```
 
-By default it listens on `http://127.0.0.1:7348`. Set `TEKMAR_DAEMON_HOST`, `TEKMAR_DAEMON_PORT`, or `TEKMAR_CACHE_TTL_MS` to change the bind address, port, or read cache TTL.
+Leave the terminal window open. If the laptop sleeps or the process exits, the HomeKit bridge stops.
 
-Endpoints:
-
-```text
-GET /api/health
-GET /api/temperatures
-GET /api/temperatures/:id
-PUT /api/temperatures/:id/mode        {"mode":"..."}
-PUT /api/temperatures/:id/setpoint    {"kind":"heat","temperatureF":67}
-GET /api/scenes
-GET /api/scenes/:id
-PUT /api/scenes/active                {"id":"..."}
-GET /api/schedules
-GET /api/schedules/system-1
-PUT /api/schedules/system-1           {"mode":"...","numEvents":"...","occ":"...","unocc":"..."}
-GET /api/water-temperatures
-GET /api/water-temperatures/:id
-GET /api/graphs
-GET /api/graphs.csv
-```
+Pair in Apple Home with code `031-45-154`.

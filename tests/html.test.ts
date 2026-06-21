@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { csrfToken, formBody, parseForms, parseLinks, parseTables } from "../src/html";
-import { graphCsv, graphs, setTemperatureSetpoint, streamTemperatures, temperatures } from "../src/resources";
+import { setTemperatureSetpoint, temperatures } from "../src/resources";
 
 test("parses Rails forms and builds override body", () => {
   const html = `<form action="/temperatures/9" method="post">
@@ -22,31 +22,6 @@ test("parses links and tables", () => {
   const html = `<a href="/temperatures/9">Sunroom</a><table><tr><th>Name</th><td>Temp</td></tr></table>`;
   assert.deepEqual(parseLinks(html), [{ href: "/temperatures/9", text: "Sunroom" }]);
   assert.deepEqual(parseTables(html), [[["Name", "Temp"]]]);
-});
-
-test("graph csv posts csv_x to graph form", async () => {
-  const calls: Array<{ path: string; body?: URLSearchParams }> = [];
-  const client = {
-    async formFor(path: string) {
-      calls.push({ path });
-      return {
-        form: parseForms(`<form action="/graphs/show" method="post">
-          <input name="authenticity_token" value="abc">
-          <input name="_method" value="put">
-          <input name="display_outdoor" value="1" checked type="checkbox">
-        </form>`)[0]!,
-      };
-    },
-    async put(path: string, body: URLSearchParams) {
-      calls.push({ path, body });
-      return "csv";
-    },
-  };
-
-  const csv = await graphCsv(client as never);
-  assert.equal(csv, "csv");
-  assert.equal(calls[1]?.path, "/graphs/show");
-  assert.equal(calls[1]?.body?.get("csv_x"), "CSV Export");
 });
 
 test("temperature setpoint posts the selected heating or cooling field", async () => {
@@ -72,24 +47,6 @@ test("temperature setpoint posts the selected heating or cooling field", async (
   assert.equal(calls[1]?.path, "/temperatures/9");
   assert.equal(calls[1]?.body?.get("device[heating_setpoint]"), "67");
 });
-
-
-test("parses legacy entities and inline graph series", async () => {
-  const client = {
-    async get() {
-      return `<h4>Current outdoor temperature: 79 &deg;F</h4>
-      <script>
-        var OutdoorTemperature=[[
-          0, 80.2],
-        ];
-      </script>
-      <form action="/graphs/show" method="post"></form>`;
-    },
-  };
-  const result = await graphs(client as never);
-  assert.deepEqual(result.series, [{ name: "OutdoorTemperature", pointCount: 1, first: [0, 80.2], last: [0, 80.2] }]);
-});
-
 test("returns a domain temperature list", async () => {
   const client = {
     async get() {
@@ -149,23 +106,4 @@ test("returns Ajax-loaded temperature rows", async () => {
     outdoorTemperatureF: 79,
     zones: [{ id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null }],
   });
-});
-
-test("streams Ajax-loaded temperature rows", async () => {
-  const client = {
-    async get(path: string) {
-      if (path === "/temperatures") {
-        return `<h4>Current outdoor temperature: 79 &deg;F</h4><tr id="thermostat9"></tr>`;
-      }
-      return `myhtml="<td><a href=\\"/temperatures/9\\">Sunroom<\\/a><\\/td><td>75<\\/td><td>64<\\/td><td>n/a<\\/td>"
-      $('thermostat9').replace(myhtml);`;
-    },
-  };
-
-  const events = [];
-  for await (const event of streamTemperatures(client as never)) events.push(event);
-  assert.deepEqual(events, [
-    { type: "outdoor", outdoorTemperatureF: 79 },
-    { type: "zone", zone: { id: "9", name: "Sunroom", temperatureF: 75, heatSetpointF: 64, coolSetpointF: null } },
-  ]);
 });
