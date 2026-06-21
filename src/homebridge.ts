@@ -50,6 +50,8 @@ class TekmarPlatform implements DynamicPlatformPlugin {
   private readonly client: TekmarClient;
   private readonly accessories = new Map<string, PlatformAccessory<ZoneContext>>();
   private readonly states = new Map<string, ZoneState>();
+  private readonly pendingWrites = new Map<string, number>();
+  private writeQueue: Promise<void> = Promise.resolve();
   private pollTimer: NodeJS.Timeout | undefined;
 
   constructor(
@@ -128,6 +130,7 @@ class TekmarPlatform implements DynamicPlatformPlugin {
     const snapshot = await temperatures(this.client) as TemperatureList;
     for (const zone of snapshot.zones) {
       if (!zone.id) continue;
+      if (this.isPendingWrite(zone.id)) continue;
       const existing = this.states.get(zone.id);
       this.states.set(zone.id, { ...zone, lastTargetState: existing?.lastTargetState ?? preferredTargetState(zone) });
       const accessory = this.accessories.get(zone.id);
@@ -197,21 +200,23 @@ class TekmarPlatform implements DynamicPlatformPlugin {
     return this.stateFor(id).lastTargetState;
   }
 
-  private async setTargetTemperature(id: string, temperatureC: number): Promise<void> {
+  private setTargetTemperature(id: string, temperatureC: number): void {
     const state = this.stateFor(id);
     const kind = setpointKindFor(state);
     const temperatureF = Math.round(celsiusToFahrenheit(temperatureC));
-    this.states.set(id, { ...state, [`${kind}SetpointF`]: temperatureF });
-    await setTemperatureSetpoint(this.client, id, kind, temperatureF);
-    await this.refresh();
+    const next = { ...state, [`${kind}SetpointF`]: temperatureF };
+    this.states.set(id, next);
+    this.updateThermostatForId(id, next);
+    this.enqueueWrite(id, () => setTemperatureSetpoint(this.client, id, kind, temperatureF));
   }
 
-  private async setTargetHeatingCoolingState(id: string, value: number): Promise<void> {
+  private setTargetHeatingCoolingState(id: string, value: number): void {
     if (!isTargetHeatingCoolingState(value)) throw new Error(`Unsupported target state: ${value}`);
     const state = this.stateFor(id);
-    this.states.set(id, { ...state, lastTargetState: value });
-    await setTemperatureMode(this.client, id, tekmarModeFor(value, state));
-    await this.refresh();
+    const next = { ...state, lastTargetState: value };
+    this.states.set(id, next);
+    this.updateThermostatForId(id, next);
+    this.enqueueWrite(id, () => setTemperatureMode(this.client, id, tekmarModeFor(value, state)));
   }
 
   private stateFor(id: string): ZoneState {
@@ -222,6 +227,39 @@ class TekmarPlatform implements DynamicPlatformPlugin {
 
   private stateForOptional(id: string): ZoneState | undefined {
     return this.states.get(id);
+  }
+
+  private updateThermostatForId(id: string, zone: TemperatureZone): void {
+    const accessory = this.accessories.get(id);
+    if (accessory) this.updateThermostat(accessory, zone);
+  }
+
+  private enqueueWrite(id: string, operation: () => Promise<unknown>): void {
+    this.markPendingWrite(id);
+    const run = this.writeQueue
+      .then(operation)
+      .catch((error) => this.log.warn("Tekmar write failed for zone %s: %s", id, errorMessage(error)))
+      .finally(() => {
+        this.unmarkPendingWrite(id);
+        if (!this.isPendingWrite(id)) {
+          this.refresh().catch((error) => this.log.warn("Failed to refresh Tekmar zones after write: %s", errorMessage(error)));
+        }
+      });
+    this.writeQueue = run.then(() => undefined);
+  }
+
+  private markPendingWrite(id: string): void {
+    this.pendingWrites.set(id, (this.pendingWrites.get(id) ?? 0) + 1);
+  }
+
+  private unmarkPendingWrite(id: string): void {
+    const next = (this.pendingWrites.get(id) ?? 1) - 1;
+    if (next > 0) this.pendingWrites.set(id, next);
+    else this.pendingWrites.delete(id);
+  }
+
+  private isPendingWrite(id: string): boolean {
+    return this.pendingWrites.has(id);
   }
 }
 

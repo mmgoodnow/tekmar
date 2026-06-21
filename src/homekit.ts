@@ -64,6 +64,8 @@ export class TekmarHomeKitBridge {
   private readonly storagePath: string;
   private readonly states = new Map<string, ZoneState>();
   private readonly zones = new Map<string, ZoneRuntime>();
+  private readonly pendingWrites = new Map<string, number>();
+  private writeQueue: Promise<void> = Promise.resolve();
   private bridge: Bridge | undefined;
   private pollTimer: NodeJS.Timeout | undefined;
 
@@ -148,7 +150,12 @@ export class TekmarHomeKitBridge {
       .setProps({ minValue: fahrenheitToCelsius(40), maxValue: fahrenheitToCelsius(85), minStep: 0.1 })
       .on(CharacteristicEventTypes.GET, (callback) => callback(null, this.targetTemperature(zone.id!)))
       .on(CharacteristicEventTypes.SET, (value, callback) => {
-        this.setTargetTemperature(zone.id!, Number(value)).then(() => callback()).catch(callback);
+        try {
+          this.setTargetTemperature(zone.id!, Number(value));
+          callback();
+        } catch (error) {
+          callback(error as Error);
+        }
       });
 
     service.getCharacteristic(Characteristic.CurrentHeatingCoolingState)
@@ -158,7 +165,12 @@ export class TekmarHomeKitBridge {
       .setProps({ validValues: targetStateValues(state) })
       .on(CharacteristicEventTypes.GET, (callback) => callback(null, this.targetHeatingCoolingState(zone.id!)))
       .on(CharacteristicEventTypes.SET, (value, callback) => {
-        this.setTargetHeatingCoolingState(zone.id!, Number(value)).then(() => callback()).catch(callback);
+        try {
+          this.setTargetHeatingCoolingState(zone.id!, Number(value));
+          callback();
+        } catch (error) {
+          callback(error as Error);
+        }
       });
 
     service.getCharacteristic(Characteristic.TemperatureDisplayUnits)
@@ -174,6 +186,7 @@ export class TekmarHomeKitBridge {
     const snapshot = await temperatures(this.client) as TemperatureList;
     for (const zone of snapshot.zones) {
       if (!zone.id) continue;
+      if (this.isPendingWrite(zone.id)) continue;
       const existing = this.states.get(zone.id);
       this.states.set(zone.id, { ...zone, lastTargetState: existing?.lastTargetState ?? preferredTargetState(zone) });
       this.updateThermostat(zone.id, zone);
@@ -206,27 +219,57 @@ export class TekmarHomeKitBridge {
     return this.stateFor(id).lastTargetState;
   }
 
-  private async setTargetTemperature(id: string, temperatureC: number): Promise<void> {
+  private setTargetTemperature(id: string, temperatureC: number): void {
     const state = this.stateFor(id);
     const kind = setpointKindFor(state);
     const temperatureF = Math.round(celsiusToFahrenheit(temperatureC));
-    this.states.set(id, { ...state, [`${kind}SetpointF`]: temperatureF });
-    await setTemperatureSetpoint(this.client, id, kind, temperatureF);
-    await this.refresh();
+    const next = { ...state, [`${kind}SetpointF`]: temperatureF };
+    this.states.set(id, next);
+    this.updateThermostat(id, next);
+    this.enqueueWrite(id, () => setTemperatureSetpoint(this.client, id, kind, temperatureF));
   }
 
-  private async setTargetHeatingCoolingState(id: string, value: number): Promise<void> {
+  private setTargetHeatingCoolingState(id: string, value: number): void {
     if (!isTargetHeatingCoolingState(value)) throw new Error(`Unsupported target state: ${value}`);
     const state = this.stateFor(id);
-    this.states.set(id, { ...state, lastTargetState: value });
-    await setTemperatureMode(this.client, id, tekmarModeFor(value, state));
-    await this.refresh();
+    const next = { ...state, lastTargetState: value };
+    this.states.set(id, next);
+    this.updateThermostat(id, next);
+    this.enqueueWrite(id, () => setTemperatureMode(this.client, id, tekmarModeFor(value, state)));
   }
 
   private stateFor(id: string): ZoneState {
     const state = this.states.get(id);
     if (!state) throw new Error(`No Tekmar state for zone ${id}`);
     return state;
+  }
+
+  private enqueueWrite(id: string, operation: () => Promise<unknown>): void {
+    this.markPendingWrite(id);
+    const run = this.writeQueue
+      .then(operation)
+      .catch((error) => console.warn(`Tekmar write failed for zone ${id}: ${errorMessage(error)}`))
+      .finally(() => {
+        this.unmarkPendingWrite(id);
+        if (!this.isPendingWrite(id)) {
+          this.refresh().catch((error) => console.warn(`Tekmar refresh failed after write: ${errorMessage(error)}`));
+        }
+      });
+    this.writeQueue = run.then(() => undefined);
+  }
+
+  private markPendingWrite(id: string): void {
+    this.pendingWrites.set(id, (this.pendingWrites.get(id) ?? 0) + 1);
+  }
+
+  private unmarkPendingWrite(id: string): void {
+    const next = (this.pendingWrites.get(id) ?? 1) - 1;
+    if (next > 0) this.pendingWrites.set(id, next);
+    else this.pendingWrites.delete(id);
+  }
+
+  private isPendingWrite(id: string): boolean {
+    return this.pendingWrites.has(id);
   }
 }
 
